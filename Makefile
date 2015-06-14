@@ -12,8 +12,8 @@ OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 TEST_OBJS := $(patsubst $(TESTDIR)/%,$(BUILDDIR)/%,$(TEST_SRCS:.$(SRCEXT)=.o))
 CPPFLAGS = -std=c++14 -O2 -Wall -g
 LDFLAGS =
-INC := -Iinclude/
-LIB :=
+INC := -Iinclude/ -I/usr/include/boost
+LIB := -lboost_program_options
 TESTINC := $(INC) -I$(GTESTDIR)/include
 TESTLIB := $(LIB) -L$(GTESTDIR)/lib/.libs -lgtest -lgtest_main -lpthread
 

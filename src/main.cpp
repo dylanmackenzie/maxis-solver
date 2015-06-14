@@ -2,49 +2,74 @@
 #include <fstream>
 #include <sstream>
 
+#include "boost/program_options.hpp"
+
 #include "maxis/graph.hpp"
 #include "maxis/solver.hpp"
 #include "maxis/genetic.hpp"
 
-maxis::BitVector
-solve_maxis(maxis::Graph &g, double constraint) {
-    using namespace maxis::genetic;
-
-    MaxisHeuristicGenerator gen{};
-    TournamentSelector sel{2};
-    BlendingRecombinator rec{};
-    SinglePointMutator mut{4};
-
-    maxis::GeneticMaxisSolver solver{g, gen, sel, rec, mut};
-    solver.constraint = constraint;
-
-    return solver();
-}
-
 int
 main(int argc, char *argv[]) {
+    namespace po = boost::program_options;
     using std::cout;
     using std::endl;
 
-    if (argc < 2) {
-        cout << "Need input file" << endl;
+    // Parse arguments
+    po::options_description opts{"Options"};
+    opts.add_options()
+        ("help,h", "Display usage information")
+        ("file", po::value<std::string>(), "Input file")
+        ("population,p", po::value<size_t>(), "Population size")
+        ("constraint,w", po::value<double>()->default_value(30), "Constraint weight")
+        ("mutation,m", po::value<double>()->default_value(7), "Mutation rate")
+        ("tournament,t", po::value<size_t>()->default_value(2), "Tournament Size");
+
+    po::positional_options_description p;
+    p.add("file", -1);
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).options(opts).positional(p).run(), vm);
+    po::notify(vm);
+    if (!vm.count("file")) {
+        cout << "No input file specified" << endl;
         return 1;
     }
-    std::ifstream is(argv[1]);
 
-    auto test = maxis::Graph::from_ascii_dimacs(is);
-    auto coloring = solve_maxis(test, std::stoi(argv[2]));
+    // Parse and load graph
+    std::ifstream is(vm["file"].as<std::string>());
+    auto graph = maxis::Graph::from_ascii_dimacs(is);
 
+    // Initialize genetic solver
+    auto pop_size = graph.order() / 2;
+    if (vm.count("size")) {
+        pop_size = vm["size"].as<size_t>();
+    }
+    maxis::genetic::TournamentSelector sel{vm["tournament"].as<size_t>()};
+    maxis::genetic::BlendingRecombinator rec{};
+    maxis::genetic::SinglePointMutator mut{vm["mutation"].as<double>()};
+
+    maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
+    solver.constraint = vm["constraint"].as<double>();
+    solver.size = pop_size;
+
+    // Solve and print results
+    auto coloring = graph.weighted_maxis(solver);
+
+    auto is_valid_result = graph.is_independent_set(coloring);
     cout << endl << "Results" << endl << "=======" << endl;
-    cout << test.is_independent_set(coloring) << endl;
-    cout << "Vertices: ";
+    if (!is_valid_result) {
+        cout << "ERROR Invalid Independent Set: ";
+    } else {
+        cout << "Vertices: ";
+    }
 
-    for (size_t i = 0; i < test.order(); ++i) {
+    for (size_t i = 0; i < graph.order(); ++i) {
         if (coloring[i]) {
             cout << i << " ";
         }
     }
-
     cout << endl;
-    cout << "Weight: " << test.weighted_total(coloring) << endl;
+
+    if (is_valid_result) {
+        cout << "Weight: " << graph.weighted_total(coloring) << endl;
+    }
 }
