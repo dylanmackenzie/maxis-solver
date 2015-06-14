@@ -38,7 +38,6 @@ class GeneticMaxisSolver : public virtual MaxisSolver {
 public:
     GeneticMaxisSolver(
             const Graph&,
-            genetic::MaxisHeuristicGenerator&,
             genetic::Selector&,
             genetic::Recombinator&,
             genetic::Mutator&);
@@ -49,7 +48,6 @@ public:
 
 private:
     Graph graph;
-    genetic::MaxisHeuristicGenerator &generator;
     genetic::Selector &selector;
     genetic::Recombinator &recombinator;
     genetic::Mutator &mutator;

@@ -1,7 +1,5 @@
 #include <algorithm>
 #include <vector>
-#include <unordered_set>
-#include <cassert>
 
 #include "maxis/genetic.hpp"
 
@@ -18,49 +16,6 @@ size_t
 RNG::random_index(size_t start, size_t end) {
     std::uniform_int_distribution<size_t> range{start, end};
     return range(engine);
-}
-
-// Generators
-MaxisHeuristicGenerator::MaxisHeuristicGenerator() {}
-
-void
-MaxisHeuristicGenerator::initialize(Phenotype &ph) {
-    using std::begin; using std::end;
-
-    auto order = graph->order();
-    auto adj = graph->adjacency_matrix();
-
-    BitVector cover(order, 0);
-    std::fill(begin(*ph.chromosome), end(*ph.chromosome), 0);
-    auto uncovered_cnt = order;
-
-    // Randomly select a set of vertices that completely cover the
-    // graph
-    while (uncovered_cnt > 0) {
-        // Pick an uncovered vertex at random
-        size_t skips = rng.random_index(0, uncovered_cnt - 1);
-        size_t dist;
-        auto it = begin(cover);
-        for (; it != end(cover); ++it)  {
-            if (*it == 0 && skips-- == 0) {
-                dist = std::distance(begin(cover), it);
-                *it = 1;
-                break;
-            }
-        }
-
-        // Select it and mark all of its neighbors as covered
-        (*ph.chromosome)[dist] = 1;
-        --uncovered_cnt;
-        for (auto i = begin(cover), j = begin(adj) + dist*order; i != end(cover); ++i, ++j) {
-            if (*j != 0 && *i == 0) {
-                *i = 1;
-                if (--uncovered_cnt == 0) {
-                    break;
-                }
-            }
-        }
-    }
 }
 
 // Selectors
@@ -177,50 +132,6 @@ SinglePointMutator::mutate(Phenotype &ph) {
             *it = !*it;
         }
     }
-}
-
-MaxisHeuristicMutator::MaxisHeuristicMutator() {}
-
-void
-MaxisHeuristicMutator::mutate(Phenotype &ph) {
-    using std::begin; using std::end;
-
-    auto adj = graph->adjacency_matrix();
-    auto order = graph->order();
-
-    // Remove vertices until we have an independent set
-    // it.first is the iterator over the adjacency matrix
-    // it.second is the iterator over the set of vertices
-    for (auto it = std::make_pair(begin(adj), begin(*ph.chromosome)); it.second != end(*ph.chromosome); it.first += order, ++it.second) {
-        // If vertex is not selected, there is no conflict
-        if (!*it.second) {
-            continue;
-        }
-
-        // Delete all vertices that are in the set and neighbors of the
-        // vertex which is currently being processed
-        // TODO: change to std::rbegin() when gcc supports it
-        auto cover = std::inner_product(begin(*ph.chromosome), end(*ph.chromosome), it.first, 0);
-        decltype(adj)::reverse_iterator rit{it.first + order};
-        for (auto jt = std::make_pair(rit, ph.chromosome->rbegin()); cover != 0 && jt.second != ph.chromosome->rend(); ++jt.first, ++jt.second) {
-            if (*jt.first && *jt.second) {
-                *jt.second = 0;
-                --cover;
-            }
-        }
-    }
-
-    // Add back vertices to fill empty spaces
-    for (auto it = std::make_pair(begin(adj), begin(*ph.chromosome)); it.second != end(*ph.chromosome); it.first += order, ++it.second) {
-        if (*it.second) {
-            continue;
-        }
-        if(std::inner_product(begin(*ph.chromosome), end(*ph.chromosome), it.first, 0) == 0) {
-            *it.second = 1;
-        }
-    }
-
-    assert(graph->is_independent_set(*ph.chromosome));
 }
 
 } // namespace genetic

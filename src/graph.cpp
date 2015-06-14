@@ -168,19 +168,7 @@ Graph::is_independent_set(const BitVector &bv) const {
 
 double
 Graph::weighted_total(const BitVector &c) const {
-    using std::begin;
-    using std::end;
-
-    return std::inner_product(
-            begin(c),
-            end(c),
-            begin(weights),
-            0,
-            std::plus<double>(),
-            [](bool c, decltype(weights)::value_type w) {
-                return w * c;
-            }
-    );
+    return std::inner_product(std::begin(c), std::end(c), begin(weights), 0.0);
 }
 
 BitVector

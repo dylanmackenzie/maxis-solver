@@ -39,13 +39,6 @@ private:
 
 // Abstract Base Classes
 
-class Generator {
-
-public:
-    virtual ~Generator() {};
-    virtual void initialize(Phenotype&) =0;
-};
-
 class Selector {
 public:
     virtual ~Selector() {};
@@ -62,18 +55,6 @@ class Mutator {
 public:
     virtual ~Mutator() {};
     virtual void mutate(Phenotype&) =0;
-};
-
-// Generator Implementations
-
-class MaxisHeuristicGenerator : public virtual Generator {
-public:
-    MaxisHeuristicGenerator();
-
-    virtual void initialize(Phenotype &);
-
-    const Graph *graph;
-    RNG rng;
 };
 
 // Selector implementations
