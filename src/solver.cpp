@@ -57,6 +57,8 @@ BruteForceMaxisSolver::operator()() {
 
 // Genetic Maxis Solver
 
+// The heuristic feasability operator ensures that genotypes created
+// from mutation and breeding are valid independent sets
 void
 heuristic_feasibility(const Graph &graph, genetic::Phenotype &ph) {
     using std::begin; using std::end;
@@ -97,6 +99,8 @@ heuristic_feasibility(const Graph &graph, genetic::Phenotype &ph) {
     }
 }
 
+// initialize_set is used to generate the initial population with valid
+// independent sets on graph g
 void
 initialize_set(const Graph &g, genetic::Phenotype &ph) {
     using std::begin; using std::end;
@@ -152,7 +156,7 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 
     using std::begin; using std::end;
 
-    size =  graph.order() / 2;
+    size = graph.order() / 2;
 
     // Reorder graph by sorting vertices by (weight / degree)
     permutation.resize(graph.order());
