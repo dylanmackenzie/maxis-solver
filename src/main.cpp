@@ -22,7 +22,7 @@ main(int argc, char *argv[]) {
         ("population,p", po::value<size_t>(), "Population size")
         ("constraint,w", po::value<double>()->default_value(30), "Constraint weight")
         ("mutation,m", po::value<double>()->default_value(7), "Mutation rate")
-        ("tournament,t", po::value<size_t>()->default_value(2), "Tournament Size");
+        ("selector,s", po::value<size_t>()->default_value(2), "Tournament Size");
 
     po::positional_options_description p;
     p.add("file", -1);
@@ -43,9 +43,9 @@ main(int argc, char *argv[]) {
     if (vm.count("population")) {
         pop_size = vm["population"].as<size_t>();
     }
-    genetic::TournamentSelector sel{vm["tournament"].as<size_t>()};
+    genetic::TournamentSelector sel{vm["selector"].as<size_t>()};
     genetic::BlendingRecombinator rec{};
-    genetic::VariableRateMutator mut{vm["mutation"].as<double>(), 300, 0.1};
+    genetic::VariableRateMutator mut{vm["mutation"].as<double>(), 500, 0.1};
 
     maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
     solver.constraint = vm["constraint"].as<double>();
