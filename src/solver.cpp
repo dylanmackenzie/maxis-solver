@@ -77,12 +77,10 @@ heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
         // Delete all vertices that are in the set and neighbors of the
         // vertex which is currently being processed
         // TODO: change to std::rbegin() when gcc supports it
-        auto cover = std::inner_product(begin(chromosome), end(chromosome), it.first, 0);
         BitVector::reverse_iterator rit{std::next(it.first, order)};
-        for (auto jt = std::make_pair(rit, chromosome.rbegin()); cover != 0 && jt.second != chromosome.rend(); ++jt.first, ++jt.second) {
-            if (*jt.first && *jt.second) {
+        for (auto jt = std::make_pair(rit, chromosome.rbegin()); jt.second != chromosome.rend(); ++jt.first, ++jt.second) {
+            if (*jt.first) {
                 *jt.second = 0;
-                --cover;
             }
         }
     }
@@ -246,13 +244,17 @@ GeneticMaxisSolver::operator()() {
         }
 
         // Insert new child into sorted position and update algorithm state
-        auto sorted_pos = std::lower_bound(std::next(begin(pop)), end(pop), child);
+        auto sorted_pos = std::upper_bound(std::next(begin(pop)), end(pop), child);
         for (auto it = begin(pop); it != std::prev(sorted_pos); ++it) {
             std::swap(*it, *std::next(it));
         }
         state.min_fitness = begin(pop)->fitness;
         state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
         ++state.iterations;
+        if ((state.iterations & ((1 << 10) - 1)) == 0) {
+            std::cout << "Iterations: " << state.iterations
+                      << "; Average Fitness: " << state.total_fitness / size << std::endl;
+        }
     }
 
     auto max = std::prev(end(pop));
