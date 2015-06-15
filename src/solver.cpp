@@ -255,7 +255,7 @@ GeneticMaxisSolver::operator()() {
         ++state.iterations;
     }
 
-    auto max = end(pop);
+    auto max = std::prev(end(pop));
 
     BitVector result(order);
     for (size_t i = 0; i < order; ++i) {
