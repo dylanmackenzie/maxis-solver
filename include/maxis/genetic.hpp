@@ -1,19 +1,20 @@
-#include <random>
+#include <algorithm>
 #include <memory>
 
 #include "graph.hpp"
+#include "rng.hpp"
 
 #ifndef MAXIS_GENETIC_H
 #define MAXIS_GENETIC_H
 
-namespace maxis {
 namespace genetic {
 
-struct Phenotype {
-    Phenotype() : chromosome{nullptr}, fitness{0.0} {}
-    Phenotype(size_t n) : chromosome{new BitVector(n)}, fitness{0.0} {}
+using maxis::BitVector;
 
-    std::unique_ptr<BitVector> chromosome;
+struct Phenotype {
+    Phenotype(BitVector *ch) : chromosome{ch}, fitness{0.0} {}
+
+    BitVector * chromosome;
     double fitness;
 
     inline bool operator<(const Phenotype &cmp) const {
@@ -21,20 +22,17 @@ struct Phenotype {
     }
 };
 
-// Mixin for seeding and generating random doubles between 0 and 1
-class RNG {
-public:
-    RNG() : engine{0}, probability{0, 1} {};
+struct AlgorithmState {
+    AlgorithmState() :
+        min_fitness{0}, max_fitness{0}, total_fitness{0},
+        adjusted_fitness{0}, iterations{0} {};
 
-    template<typename SeedType>
-    void seed_random(SeedType seed) { engine.seed(seed); };
+    double min_fitness;
+    double max_fitness;
+    double total_fitness;
+    double adjusted_fitness; // sum(fitness - min_fitness) over the population
 
-    double random_prob();
-    size_t random_index(size_t, size_t);
-
-private:
-    std::mt19937 engine;
-    std::uniform_real_distribution<double> probability;
+    unsigned int iterations;
 };
 
 // Abstract Base Classes
@@ -42,19 +40,24 @@ private:
 class Selector {
 public:
     virtual ~Selector() {};
-    virtual Phenotype& select(std::vector<Phenotype>::iterator, std::vector<Phenotype>::iterator, double, double) =0;
+    virtual Phenotype& select(
+            const AlgorithmState&,
+            std::vector<Phenotype>::iterator,
+            std::vector<Phenotype>::iterator) =0;
 };
 
 class Recombinator {
 public:
     virtual ~Recombinator() {};
-    virtual void crossover(Phenotype&, Phenotype&, Phenotype&) =0;
+    virtual void breed(
+            const AlgorithmState&,
+            const Phenotype&, const Phenotype&, Phenotype&) =0;
 };
 
 class Mutator {
 public:
     virtual ~Mutator() {};
-    virtual void mutate(Phenotype&) =0;
+    virtual void mutate(const AlgorithmState&, Phenotype&) =0;
 };
 
 // Selector implementations
@@ -62,7 +65,10 @@ public:
 class TournamentSelector : public virtual Selector {
 public:
     TournamentSelector(size_t size) : size{size} {};
-    Phenotype& select(std::vector<Phenotype>::iterator, std::vector<Phenotype>::iterator, double, double);
+    Phenotype& select(
+            const AlgorithmState&,
+            std::vector<Phenotype>::iterator,
+            std::vector<Phenotype>::iterator);
     RNG rng;
 
 private:
@@ -71,52 +77,34 @@ private:
 
 class RouletteSelector : public virtual Selector {
 public:
-    Phenotype& select(std::vector<Phenotype>::iterator, std::vector<Phenotype>::iterator, double, double);
+    Phenotype& select(
+            const AlgorithmState&,
+            std::vector<Phenotype>::iterator,
+            std::vector<Phenotype>::iterator);
     RNG rng;
-private:
 };
 
 // Recombinator implementations
 
-// class SinglePointRecombinator : public virtual Recombinator {
-// public:
-    // void crossover(Phenotype&, Phenotype&);
-    // RNG rng;
-// };
-
-// class DoublePointRecombinator : public virtual Recombinator {
-// public:
-    // void crossover(Phenotype&, Phenotype&);
-    // RNG rng;
-// };
-
 class BlendingRecombinator : public virtual Recombinator {
 public:
-    void crossover(Phenotype&, Phenotype&, Phenotype&);
+    void breed(const AlgorithmState&, const Phenotype&, const Phenotype&, Phenotype&);
     RNG rng;
 };
 
 // Mutator implementations
 
-class SinglePointMutator : public virtual Mutator {
+class SimpleMutator : public virtual Mutator {
 public:
-    SinglePointMutator(double mul);
-    void mutate(Phenotype&);
+    SimpleMutator(double mul) : probability_multiplier{mul} {};
+    void mutate(const AlgorithmState&, Phenotype&);
 
     RNG rng;
+
+private:
     double probability_multiplier;
 };
 
-class MaxisHeuristicMutator : public virtual Mutator {
-public:
-    MaxisHeuristicMutator();
-    void mutate(Phenotype&);
-
-    const Graph *graph;
-    RNG rng;
-};
-
 } // namespace genetic
-} // namespace maxis
 
 #endif // MAXIS_GENETIC_H

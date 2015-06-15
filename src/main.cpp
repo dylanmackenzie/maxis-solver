@@ -40,12 +40,12 @@ main(int argc, char *argv[]) {
 
     // Initialize genetic solver
     auto pop_size = graph.order() / 2;
-    if (vm.count("size")) {
-        pop_size = vm["size"].as<size_t>();
+    if (vm.count("population")) {
+        pop_size = vm["population"].as<size_t>();
     }
-    maxis::genetic::TournamentSelector sel{vm["tournament"].as<size_t>()};
-    maxis::genetic::BlendingRecombinator rec{};
-    maxis::genetic::SinglePointMutator mut{vm["mutation"].as<double>()};
+    genetic::TournamentSelector sel{vm["tournament"].as<size_t>()};
+    genetic::BlendingRecombinator rec{};
+    genetic::SimpleMutator mut{vm["mutation"].as<double>()};
 
     maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
     solver.constraint = vm["constraint"].as<double>();
