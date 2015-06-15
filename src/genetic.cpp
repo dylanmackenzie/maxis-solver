@@ -78,11 +78,25 @@ void
 SimpleMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
     using std::begin; using std::end;
 
-    auto l = ph.chromosome->size();
-    double prob = probability_multiplier / l;
+    double rate = probability_multiplier / ph.chromosome->size();
 
     for (auto it = begin(*ph.chromosome); it != end(*ph.chromosome); ++it) {
-        if (rng.random_prob() < prob) {
+        if (rng.random_prob() < rate) {
+            *it = !*it;
+        }
+    }
+}
+
+void
+VariableRateMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
+    using std::begin; using std::end;
+
+    double rate = exp(-4 * gradient * (state.iterations - halfway) / steady_state);
+    rate = steady_state / (1 + rate);
+    rate /= ph.chromosome->size();
+
+    for (auto it = begin(*ph.chromosome); it != end(*ph.chromosome); ++it) {
+        if (rng.random_prob() < rate) {
             *it = !*it;
         }
     }

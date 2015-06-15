@@ -45,16 +45,16 @@ main(int argc, char *argv[]) {
     }
     genetic::TournamentSelector sel{vm["tournament"].as<size_t>()};
     genetic::BlendingRecombinator rec{};
-    genetic::SimpleMutator mut{vm["mutation"].as<double>()};
+    genetic::VariableRateMutator mut{vm["mutation"].as<double>(), 300, 0.1};
 
     maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
     solver.constraint = vm["constraint"].as<double>();
     solver.size = pop_size;
 
     // Solve and print results
-    auto coloring = graph.weighted_maxis(solver);
+    auto result = graph.weighted_maxis(solver);
 
-    auto is_valid_result = graph.is_independent_set(coloring);
+    auto is_valid_result = graph.is_independent_set(result);
     cout << endl << "Results" << endl << "=======" << endl;
     if (!is_valid_result) {
         cout << "ERROR Invalid Independent Set: ";
@@ -62,14 +62,14 @@ main(int argc, char *argv[]) {
         cout << "Vertices: ";
     }
 
-    for (size_t i = 0; i < graph.order(); ++i) {
-        if (coloring[i]) {
-            cout << i << " ";
+    for (auto it = begin(result); it != end(result); ++it) {
+        if (*it) {
+            cout << std::distance(begin(result), it) << " ";
         }
     }
     cout << endl;
 
     if (is_valid_result) {
-        cout << "Weight: " << graph.weighted_total(coloring) << endl;
+        cout << "Weight: " << graph.weighted_total(result) << endl;
     }
 }

@@ -105,6 +105,21 @@ private:
     double probability_multiplier;
 };
 
+class VariableRateMutator : public virtual Mutator {
+public:
+    VariableRateMutator(double ss, size_t halfway, double gradient)
+        : steady_state{ss}, halfway{halfway}, gradient{gradient} {};
+
+    void mutate(const AlgorithmState&, Phenotype&);
+
+    RNG rng;
+
+private:
+    double steady_state;
+    size_t halfway;
+    double gradient;
+};
+
 } // namespace genetic
 
 #endif // MAXIS_GENETIC_H
