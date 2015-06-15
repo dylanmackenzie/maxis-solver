@@ -169,7 +169,6 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 BitVector
 GeneticMaxisSolver::operator()() {
     using std::begin; using std::end;
-    using genetic::Phenotype;
 
     auto order = graph.order();
     auto adj = graph.adjacency_matrix();
@@ -186,9 +185,10 @@ GeneticMaxisSolver::operator()() {
 
     // Generate the initial population
     std::vector<BitVector> chromosomes;
-    std::vector<Phenotype> pop;
+    std::vector<genetic::Phenotype> pop;
     pop.reserve(size);
     chromosomes.reserve(size);
+
     for (decltype(size) i = 0; i < size; ++i) {
         chromosomes.emplace_back(order);
         pop.emplace_back(&chromosomes[i]);
@@ -205,7 +205,7 @@ GeneticMaxisSolver::operator()() {
     state.max_fitness = end(pop)->fitness;
     state.total_fitness = std::accumulate(
         begin(pop), end(pop), 0.0,
-        [](double acc, Phenotype &ph) {
+        [](double acc, genetic::Phenotype &ph) {
             return acc + ph.fitness;
         }
     );
@@ -233,7 +233,7 @@ GeneticMaxisSolver::operator()() {
         } while (dupes.insert(child.chromosome).second == false);
 
         // Calculate fitness of new population member and update the
-        // total_fitness
+        // total fitness
         state.total_fitness -= child.fitness;
         child.fitness = graph.weighted_total(*child.chromosome);
         state.total_fitness += child.fitness;
@@ -241,8 +241,8 @@ GeneticMaxisSolver::operator()() {
         // Log fitness info
         if (child.fitness > state.max_fitness) {
             state.max_fitness = child.fitness;
-            std::cout << "Best independent set (" << state.max_fitness
-                      << "): "  << std::endl;
+            std::cout << "Best independent set (" << state.max_fitness << "): "
+                << std::endl;
         }
 
         // Insert new child into sorted position and update algorithm state
