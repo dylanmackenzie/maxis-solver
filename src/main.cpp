@@ -22,6 +22,9 @@ main(int argc, char *argv[]) {
         ("population,p", po::value<size_t>(), "Population size")
         ("constraint,w", po::value<double>()->default_value(30), "Constraint weight")
         ("mutation,m", po::value<double>()->default_value(7), "Mutation rate")
+        ("mutation-start", po::value<size_t>()->default_value(5000), "Point at which mutation"
+            " reaches half of its final rate (will only take effect with VariableRateMutator)")
+        ("mutation-gradient", po::value<double>()->default_value(0.005), "Mutation growth rate (will only take effect with Variable Rate Mutator)")
         ("selector,s", po::value<size_t>()->default_value(2), "Tournament Size");
 
     po::positional_options_description p;
@@ -45,7 +48,11 @@ main(int argc, char *argv[]) {
     }
     genetic::TournamentSelector sel{vm["selector"].as<size_t>()};
     genetic::BlendingRecombinator rec{};
-    genetic::VariableRateMutator mut{vm["mutation"].as<double>(), 500, 0.1};
+    genetic::VariableRateMutator mut{
+        vm["mutation"].as<double>(),
+        vm["mutation-start"].as<size_t>(),
+        vm["mutation-gradient"].as<double>()
+    };
 
     maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
     solver.constraint = vm["constraint"].as<double>();
