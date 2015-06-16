@@ -72,7 +72,12 @@ GeneticMaxisSolver::GeneticMaxisSolver(
             genetic::Selector &sel,
             genetic::Recombinator &rec,
             genetic::Mutator &mut
-        ) : graph{g}, selector{sel}, recombinator{rec}, mutator{mut}, size{50} {
+        ) : constraint {std::numeric_limits<double>::infinity()},
+            size{50},
+            graph{g},
+            selector{sel},
+            recombinator{rec},
+            mutator{mut} {
 
     using std::begin; using std::end;
 
