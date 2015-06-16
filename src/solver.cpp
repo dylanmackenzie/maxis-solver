@@ -76,9 +76,9 @@ heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
 
         // Delete all vertices that are in the set and neighbors of the
         // vertex which is currently being processed
-        // TODO: change to std::rbegin() when gcc supports it
-        BitVector::reverse_iterator rit{std::next(it.first, order)};
-        for (auto jt = std::make_pair(rit, chromosome.rbegin()); jt.second != chromosome.rend(); ++jt.first, ++jt.second) {
+        for (auto jt = std::make_pair(std::next(it.first, std::distance(begin(chromosome), it.second)), it.second);
+                    jt.second != chromosome.end(); ++jt.first, ++jt.second) {
+
             if (*jt.first) {
                 *jt.second = 0;
             }
