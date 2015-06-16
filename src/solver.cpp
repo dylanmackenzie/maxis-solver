@@ -1,12 +1,19 @@
 #include <algorithm>
+#include <csignal>
 #include <iostream>
-#include <unordered_set>
 #include <limits>
+#include <unordered_set>
 
 #include "maxis/graph.hpp"
 #include "maxis/genetic.hpp"
 #include "maxis/solver.hpp"
 #include "maxis/rng.hpp"
+
+static volatile bool sigint_flag;
+
+void sigint_handler(int signum) {
+    sigint_flag = true;
+}
 
 namespace maxis {
 
@@ -215,7 +222,10 @@ GeneticMaxisSolver::operator()() {
     );
     state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
 
-    while (state.max_fitness < constraint) {
+    // Start handling SIGINT
+    std::signal(SIGINT, sigint_handler);
+
+    while (state.max_fitness < constraint && !sigint_flag) {
 
         // Select the weakest member of the population to be replaced
         auto &child = *begin(pop);
@@ -247,8 +257,7 @@ GeneticMaxisSolver::operator()() {
         // Log whenever we have an increase in the maximum fitness
         if (child_fitness > state.max_fitness) {
             state.max_fitness = child_fitness;
-            std::cout << "Best independent set (" << state.max_fitness << "): "
-                << std::endl;
+            std::cout << "Best independent set: " << state.max_fitness << std::endl;
         }
 
         // Use a single pass of bubble sort to put the new child in the
@@ -269,6 +278,10 @@ GeneticMaxisSolver::operator()() {
     }
 
     auto max = std::prev(end(pop));
+
+    if (sigint_flag) {
+        std::cout << "Interrupted..." << std::endl;
+    }
 
     // Rearrange the chromosome into the format of the original,
     // unsorted graph
