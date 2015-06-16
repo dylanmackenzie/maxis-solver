@@ -6,8 +6,8 @@
 namespace genetic {
 
 // Selectors
+// =========
 
-// TODO: implement a tournament selector
 Phenotype&
 TournamentSelector::select(const AlgorithmState &state, std::vector<Phenotype>::iterator b, std::vector<Phenotype>::iterator e) {
     using std::begin; using std::end;
@@ -45,8 +45,8 @@ RouletteSelector::select(const AlgorithmState &state, std::vector<Phenotype>::it
 }
 
 // Recombinators
+// =============
 
-// TODO: ensure probabilities are accurate
 void
 BlendingRecombinator::breed(const AlgorithmState &state, const Phenotype &p1, const Phenotype &p2, Phenotype &c) {
     using std::begin; using std::end;
@@ -73,6 +73,7 @@ BlendingRecombinator::breed(const AlgorithmState &state, const Phenotype &p1, co
 }
 
 // Mutators
+// ========
 
 void
 SimpleMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
@@ -93,10 +94,10 @@ VariableRateMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
 
     double rate = exp(-4 * gradient * (state.iterations - halfway) / steady_state);
     rate = steady_state / (1 + rate);
-    rate /= ph.chromosome->size();
+    double prob = rate / ph.chromosome->size();
 
     for (auto it = begin(*ph.chromosome); it != end(*ph.chromosome); ++it) {
-        if (rng.random_prob() < rate) {
+        if (rng.random_prob() < prob) {
             *it = !*it;
         }
     }

@@ -15,7 +15,10 @@ public:
 };
 
 // Solver implementations
+// ======================
 
+// The brute force solver is a naive O(2^n) algorithm. It is included
+// only as a baseline for other solver implementations.
 class BruteForceMaxisSolver : public virtual MaxisSolver {
 public:
     BruteForceMaxisSolver(const Graph&);
@@ -25,15 +28,9 @@ private:
     const Graph &graph;
 };
 
-class BranchBoundMaxisSolver : public virtual MaxisSolver {
-public:
-    BranchBoundMaxisSolver(const Graph&);
-    virtual BitVector operator()();
-
-private:
-    const Graph &graph;
-};
-
+// The genetic solver returns an approximation of the maximum weighted
+// indepenent set using a genetic algorithm based on the one by Beasley
+// and Chu. It accepts various implementations of each genetic operator.
 class GeneticMaxisSolver : public virtual MaxisSolver {
 public:
     GeneticMaxisSolver(
@@ -43,8 +40,13 @@ public:
             genetic::Mutator&);
     virtual BitVector operator()();
 
-    size_t size;
+    // constraint is the fitness goal for the genetic algorithm.
+    // The solver will return immediately when a solution with the given
+    // fitness(weight) is found.
     double constraint;
+
+    // size is the size of the population
+    size_t size;
 
 private:
     Graph graph;
@@ -52,9 +54,11 @@ private:
     genetic::Recombinator &recombinator;
     genetic::Mutator &mutator;
 
-    void compute_fitness(genetic::Phenotype&) const;
+    static void initialize_set(size_t, BitVector&, BitVector&);
+    static void heuristic_feasibility(size_t, BitVector&, BitVector&);
 
-    // Stores the permutation for reordering the vertices after sorting
+    // Stores the new order of the vertices after they sorted by weight
+    // and degree
     std::vector<size_t> permutation;
 };
 

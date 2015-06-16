@@ -11,17 +11,26 @@ namespace genetic {
 
 using maxis::BitVector;
 
+
+// Phenotype is a container which holds a chromosome and its associated
+// fitness.
 struct Phenotype {
     Phenotype(BitVector *ch) : chromosome{ch}, fitness{0.0} {}
-
-    BitVector * chromosome;
-    double fitness;
 
     inline bool operator<(const Phenotype &cmp) const {
         return fitness < cmp.fitness;
     }
+
+    // chromosome should be a unique_ptr, but the hash table for
+    // checking duplicate chromosomes is more easily implemented with
+    // pointers to chromosomes, and the overhead of a shared_ptr is
+    // unnecessary.
+    BitVector *chromosome;
+    double fitness;
 };
 
+// AlgorithmState is passed to the genetic operators on every
+// invocation. It is kept up to date by the solver.
 struct AlgorithmState {
     AlgorithmState() :
         min_fitness{0}, max_fitness{0}, total_fitness{0},
@@ -35,7 +44,12 @@ struct AlgorithmState {
     unsigned int iterations;
 };
 
-// Abstract Base Classes
+// Genetic Operator Interfaces
+// ===========================
+// These interfaces allow us to plug different genetic operators into
+// the solver for testing. If performance is critical, the solver
+// function can be templatized and these interface classes can be
+// removed.
 
 class Selector {
 public:
@@ -62,6 +76,8 @@ public:
 
 // Selector implementations
 
+// The tournament selector picks `size` cantidates out of the population
+// at random and returns the best one.
 class TournamentSelector : public virtual Selector {
 public:
     TournamentSelector(size_t size) : size{size} {};
@@ -75,6 +91,11 @@ private:
     size_t size;
 };
 
+// The roulette selector picks a population member with a probability
+// proportional to the adjusted fitness (fitness - min_fitness) of the
+// member. Note that if the genetic algorithm is near convergence and
+// the population is equally fit with the exception of one fitter
+// outlier, that outlier will be selected every time.
 class RouletteSelector : public virtual Selector {
 public:
     Phenotype& select(
@@ -86,6 +107,10 @@ public:
 
 // Recombinator implementations
 
+// The blending recombinator implements the genetic-fusion operator
+// described by Beasley and Chu. It randomly selects individul genes
+// from each parent with a probability proportional to the fitness of
+// the parent.
 class BlendingRecombinator : public virtual Recombinator {
 public:
     void breed(const AlgorithmState&, const Phenotype&, const Phenotype&, Phenotype&);
@@ -94,6 +119,8 @@ public:
 
 // Mutator implementations
 
+// The simple mutator maintains a constant average mutation rate of
+// {mul} bits.
 class SimpleMutator : public virtual Mutator {
 public:
     SimpleMutator(double mul) : probability_multiplier{mul} {};
@@ -105,6 +132,11 @@ private:
     double probability_multiplier;
 };
 
+// The variable rate mutator uses a sigmoid function to set the mutation
+// rate. {ss} is the mutation rate as the number of iterations
+// approaches infinity. {halfway} is the number of iterations before the
+// mutation rate reaches half of its steady state value. {gradient} is the
+// slope at the halfway point.
 class VariableRateMutator : public virtual Mutator {
 public:
     VariableRateMutator(double ss, size_t halfway, double gradient)

@@ -11,11 +11,12 @@
 namespace maxis {
 
 // Brute Force Solver
+// ==================
 
 BruteForceMaxisSolver::BruteForceMaxisSolver(const Graph &g) : graph{g} {}
 
 // Ripple carry increment for a collection of bits.
-// Returns true on overflow.
+// Returns false on overflow.
 bool
 increment_bit_vector(BitVector &bv) {
     using std::begin; using std::end;
@@ -31,7 +32,7 @@ increment_bit_vector(BitVector &bv) {
         }
     }
 
-    return carry;
+    return !carry;
 }
 
 BitVector
@@ -51,31 +52,61 @@ BruteForceMaxisSolver::operator()() {
                 max_set = bv;
             }
         }
-    } while (increment_bit_vector(bv) == false);
+    } while (increment_bit_vector(bv));
 
     return max_set;
 }
 
 // Genetic Maxis Solver
+// ====================
 
-// The heuristic feasability operator ensures that genotypes created
-// from mutation and breeding are valid independent sets
-// TODO: use decltype as adj need not be a BitVector
-void
-heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
+GeneticMaxisSolver::GeneticMaxisSolver(
+            const Graph &g,
+            genetic::Selector &sel,
+            genetic::Recombinator &rec,
+            genetic::Mutator &mut
+        ) : graph{g}, selector{sel}, recombinator{rec}, mutator{mut}, size{50} {
+
     using std::begin; using std::end;
 
-    // Remove vertices until we have an independent set
-    // it.first is the iterator over the adjacency matrix
-    // it.second is the iterator over the set of vertices
+    // Reorder graph by sorting vertices by their weight divided by
+    // their degree. Vertices with a large weight and few neighbors have
+    // the highest probability of appearing in the solution.
+    permutation.resize(graph.order());
+    std::iota(begin(permutation), end(permutation), 0);
+    auto &weights = graph.weights;
+    auto &adj = graph.adjacency_list;
+    std::sort(begin(permutation), end(permutation), [&weights, &adj](size_t i, size_t j) {
+        return weights[i] / adj[i].size() > weights[j] / adj[j].size();
+    });
+
+    graph.reorder(permutation);
+}
+
+// The heuristic feasability operator ensures that genotypes created
+// from mutation and breeding are valid independent sets. It is
+// essentially a greedy solver and was described by Beasley and Chu. It
+// makes a higher mutation rate necessary because some of the mutated
+// bits will be immediately cancelled out to make the set independent.
+//
+// Currently it is the bottleneck for a single iteration as it
+// runs in O(|V|^2) time where |V| is the order of the graph.
+void
+GeneticMaxisSolver::heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
+    using std::begin; using std::end;
+
+    // Traverse the chromosome, marking vertices which are most likely
+    // to appear in an optimal solution as kept. Delete all neighbors of
+    // the kept vertices from the chromosome.
     for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); it.first += order, ++it.second) {
         // If vertex is not selected, there is no conflict
         if (!*it.second) {
             continue;
         }
 
-        // Delete all vertices that are in the set and neighbors of the
-        // vertex which is currently being processed
+        // Delete all neighbors of the vertex. Because we are assuming
+        // that the graph is bidirectional, we only need to traverse
+        // half of the adjacency matrix.
         for (auto jt = std::make_pair(std::next(it.first, std::distance(begin(chromosome), it.second)), it.second);
                     jt.second != chromosome.end(); ++jt.first, ++jt.second) {
 
@@ -85,7 +116,7 @@ heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
         }
     }
 
-    // Add back vertices to fill empty spaces
+    // Add back vertices where we can
     for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); it.first += order, ++it.second) {
         if (*it.second) {
             continue;
@@ -96,10 +127,10 @@ heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
     }
 }
 
-// initialize_set is used to generate the initial population with valid
-// independent sets on the graph
+// initialize_set randomly creates an independent set on the graph with
+// adjacency matrix adj
 void
-initialize_set(size_t order, BitVector &adj, BitVector &chromosome) {
+GeneticMaxisSolver::initialize_set(size_t order, BitVector &adj, BitVector &chromosome) {
     using std::begin; using std::end;
 
     static RNG rng;
@@ -137,33 +168,6 @@ initialize_set(size_t order, BitVector &adj, BitVector &chromosome) {
     }
 }
 
-GeneticMaxisSolver::GeneticMaxisSolver(
-            const Graph &g,
-            genetic::Selector &sel,
-            genetic::Recombinator &rec,
-            genetic::Mutator &mut
-        ) : graph{g},
-            selector{sel},
-            recombinator{rec},
-            mutator{mut}
-        {
-
-    using std::begin; using std::end;
-
-    size = graph.order() / 2;
-
-    // Reorder graph by sorting vertices by (weight / degree)
-    permutation.resize(graph.order());
-    std::iota(begin(permutation), end(permutation), 0);
-    auto &weights = graph.weights;
-    auto &adj = graph.adjacency_list;
-    std::sort(begin(permutation), end(permutation), [&weights, &adj](size_t i, size_t j) {
-        return weights[i] / adj[i].size() > weights[j] / adj[j].size();
-    });
-
-    graph.reorder(permutation);
-}
-
 BitVector
 GeneticMaxisSolver::operator()() {
     using std::begin; using std::end;
@@ -187,6 +191,8 @@ GeneticMaxisSolver::operator()() {
     pop.reserve(size);
     chromosomes.reserve(size);
 
+    // If the population size is larger than the set of possible
+    // unique solutions, this will loop forever.
     for (decltype(size) i = 0; i < size; ++i) {
         chromosomes.emplace_back(order);
         pop.emplace_back(&chromosomes[i]);
@@ -209,16 +215,18 @@ GeneticMaxisSolver::operator()() {
     );
     state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
 
-    // TODO: parallelize
     while (state.max_fitness < constraint) {
 
         // Select the weakest member of the population to be replaced
         auto &child = *begin(pop);
         dupes.erase(child.chromosome);
 
+        // Select two parents for breeding and store the result into the
+        // child, while ensuring that the newly created child is unique.
+        // If the selector returns the same result every time, and the
+        // mutator does create a sufficiently unique solution, this
+        // could loop forever.
         do {
-            // Select two parents for breeding and store the result into the
-            // child, while ensuring that the newly created child is unique
             recombinator.breed(
                 state,
                 selector.select(state, begin(pop), end(pop)),
@@ -230,23 +238,27 @@ GeneticMaxisSolver::operator()() {
 
         } while (dupes.insert(child.chromosome).second == false);
 
-        // Calculate fitness of new population member and update the
+        // Calculate fitness of the new phenotype and update the
         // total fitness
         state.total_fitness -= child.fitness;
         auto child_fitness = child.fitness = graph.weighted_total(*child.chromosome);
         state.total_fitness += child_fitness;
 
-        // Log fitness info
+        // Log whenever we have an increase in the maximum fitness
         if (child_fitness > state.max_fitness) {
             state.max_fitness = child_fitness;
             std::cout << "Best independent set (" << state.max_fitness << "): "
                 << std::endl;
         }
 
-        // Insert new child into sorted position and update algorithm state
+        // Use a single pass of bubble sort to put the new child in the
+        // correct order. Phenotypes with the same fitness are ordered
+        // by freshness.
         for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= child_fitness; ++it) {
             std::swap(*it, *std::prev(it));
         }
+
+        // Update the rest of the state information
         state.min_fitness = begin(pop)->fitness;
         state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
         ++state.iterations;
@@ -258,6 +270,8 @@ GeneticMaxisSolver::operator()() {
 
     auto max = std::prev(end(pop));
 
+    // Rearrange the chromosome into the format of the original,
+    // unsorted graph
     BitVector result(order);
     for (size_t i = 0; i < order; ++i) {
         result[permutation[i]] = (*max->chromosome)[i];

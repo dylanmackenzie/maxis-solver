@@ -37,7 +37,7 @@ main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Parse and load graph
+    // Parse and initialize graph
     std::ifstream is(vm["file"].as<std::string>());
     auto graph = maxis::Graph::from_ascii_dimacs(is);
 
