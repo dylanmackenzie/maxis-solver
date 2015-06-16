@@ -233,25 +233,24 @@ GeneticMaxisSolver::operator()() {
         // Calculate fitness of new population member and update the
         // total fitness
         state.total_fitness -= child.fitness;
-        child.fitness = graph.weighted_total(*child.chromosome);
-        state.total_fitness += child.fitness;
+        auto child_fitness = child.fitness = graph.weighted_total(*child.chromosome);
+        state.total_fitness += child_fitness;
 
         // Log fitness info
-        if (child.fitness > state.max_fitness) {
-            state.max_fitness = child.fitness;
+        if (child_fitness > state.max_fitness) {
+            state.max_fitness = child_fitness;
             std::cout << "Best independent set (" << state.max_fitness << "): "
                 << std::endl;
         }
 
         // Insert new child into sorted position and update algorithm state
-        auto sorted_pos = std::upper_bound(std::next(begin(pop)), end(pop), child);
-        for (auto it = begin(pop); it != std::prev(sorted_pos); ++it) {
-            std::swap(*it, *std::next(it));
+        for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= child_fitness; ++it) {
+            std::swap(*it, *std::prev(it));
         }
         state.min_fitness = begin(pop)->fitness;
         state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
         ++state.iterations;
-        if ((state.iterations & ((1 << 10) - 1)) == 0) {
+        if ((state.iterations & 0x3ff) == 0) {
             std::cout << "Iterations: " << state.iterations
                       << "; Average Fitness: " << state.total_fitness / size << std::endl;
         }
