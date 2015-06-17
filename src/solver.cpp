@@ -1,9 +1,13 @@
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <csignal>
 #include <iostream>
 #include <limits>
-#include <vector>
+#include <mutex>
+#include <thread>
 #include <unordered_set>
+#include <vector>
 
 #include "maxis/graph.hpp"
 #include "maxis/genetic.hpp"
@@ -340,20 +344,48 @@ ParallelGeneticMaxisSolver::ParallelGeneticMaxisSolver(
 // completion_count to the number of worker threads, sets the
 // migration_complete flag for each worker to true and broadcasts
 // on the worker_cv. Finally, it waits on the migrator_cv.
-void
-genetic_worker(const Graph &g,
-        size_t migration_period,
-        vector<Phenotype>::iterator b,
-        vector<Phenotype>::iterator e,
-        genetic::Selector &sel,
-        genetic::Recombinator &rec,
-        genetic::Mutator &mut,
-        std::atomic<bool> &is_migration_complete,
-        std::atomic<unsigned int> &completion_count,
-        std::condition_variable &migrator_cv,
-        std::condition_variable &worker_cv) {
+class Worker {
+public:
+    Worker( const Graph &g, size_t period,
+            vector<genetic::Phenotype>::iterator b,
+            vector<genetic::Phenotype>::iterator e,
+            genetic::Selector &sel,
+            genetic::Recombinator &rec,
+            genetic::Mutator &mut,
+            std::atomic<bool> &f,
+            std::atomic<unsigned int> &cc, std::mutex &wm,
+            std::condition_variable &wcv, std::condition_variable &mcv
+        ) : graph{g}, migration_period{period},
+            b{b}, e{e},
+            selector{sel}, recombinator{rec}, mutator{mut},
+            is_migration_complete{f},
+            completion_count{cc}, worker_lock{wm},
+            worker_cv{wcv}, migrator_cv{mcv} {}
 
-    AlgorithmState state{std::distance(b, e)};
+    void operator()();
+
+private:
+    const Graph &graph;
+    size_t migration_period;
+    vector<genetic::Phenotype>::iterator b;
+    vector<genetic::Phenotype>::iterator e;
+
+    // Genetic operators
+    genetic::Selector &selector;
+    genetic::Recombinator &recombinator;
+    genetic::Mutator &mutator;
+
+    // Synchronization primitives
+    std::atomic<bool> &is_migration_complete;
+    std::atomic<unsigned int> &completion_count;
+    std::mutex &worker_lock;
+    std::condition_variable &worker_cv;
+    std::condition_variable &migrator_cv;
+};
+
+void
+Worker::operator()() {
+    genetic::AlgorithmState state{static_cast<size_t>(std::distance(b, e))};
     auto order = graph.order();
     auto adj = graph.adjacency_matrix();
 
@@ -364,7 +396,7 @@ genetic_worker(const Graph &g,
     auto eq_func = [](BitVector *lhs, BitVector *rhs) {
         return std::equal(begin(*lhs), end(*lhs), begin(*rhs));
     };
-    std::unordered_set<BitVector*, decltype(hash_func), decltype(eq_func)> dupes(size, hash_func, eq_func);
+    std::unordered_set<BitVector*, decltype(hash_func), decltype(eq_func)> dupes(state.size, hash_func, eq_func);
 
     while (1) {
         is_migration_complete = false;
@@ -374,7 +406,7 @@ genetic_worker(const Graph &g,
         for (auto it = b; it != e; ++it) {
             auto is_changed = false;
             while(!dupes.insert(it->chromosome).second) {
-                initialize_set(order, adj, it->chromosome);
+                GeneticMaxisSolver::initialize_set(order, adj, *it->chromosome);
                 is_changed = true;
             }
             if (is_changed) {
@@ -389,8 +421,7 @@ genetic_worker(const Graph &g,
         for (decltype(migration_period) i = 0; i < migration_period; ++i) {
 
             // Select the weakest member of the population to be replaced
-            auto &child = *begin(pop);
-            dupes.erase(child.chromosome);
+            dupes.erase(b->chromosome);
 
             // Select two parents for breeding and store the result into the
             // child, while ensuring that the newly created child is unique.
@@ -400,36 +431,43 @@ genetic_worker(const Graph &g,
             do {
                 recombinator.breed(
                     state,
-                    selector.select(state, begin(pop), end(pop)),
-                    selector.select(state, begin(pop), end(pop)),
-                    child
-                );
-                mutator.mutate(state, child);
-                heuristic_feasibility(order, adj, *child.chromosome);
+                    selector.select(state, b, e),
+                    selector.select(state, b, e),
+                    *b
+                ),
+                mutator.mutate(state, *b);
+                GeneticMaxisSolver::heuristic_feasibility(order, adj, *b->chromosome);
 
-            } while (dupes.insert(child.chromosome).second == false);
+            } while (dupes.insert(b->chromosome).second == false);
 
             // Calculate fitness of the new phenotype
-            auto old_fitness = child.fitness;
-            auto new_fitness = child.fitness = graph.weighted_total(*child.chromosome);
+            auto old_fitness = b->fitness;
+            auto new_fitness = b->fitness = graph.weighted_total(*b->chromosome);
 
             // Use a single pass of bubble sort to put the new child in the
             // correct order. Phenotypes with the same fitness are ordered
             // by freshness.
-            for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= new_fitness; ++it) {
+            for (auto it = std::next(b); it != e && it->fitness <= new_fitness; ++it) {
                 std::iter_swap(it, std::prev(it));
             }
 
             // Update state information
-            update_algorithm_state(state, begin(pop)->fitness, old_fitness, new_fitness);
+            update_algorithm_state(state, b->fitness, old_fitness, new_fitness);
         }
 
         --completion_count;
-        migrator_cv.notify();
-        while(worker_cv.wait() && !is_migration_complete);
+        migrator_cv.notify_all();
+
+        {
+            std::unique_lock<std::mutex> l(worker_lock);
+            while(!is_migration_complete) {
+                worker_cv.wait(l);
+            }
+        }
     }
 }
 
+BitVector
 ParallelGeneticMaxisSolver::operator()() {
     auto order = graph.order();
     auto adj = graph.adjacency_matrix();
@@ -440,7 +478,8 @@ ParallelGeneticMaxisSolver::operator()() {
 
     // Initialize synchronization primitives
     std::atomic<unsigned int> completion_count{num_threads};
-    vector<std::atomic<bool>> migration_complete_flags(num_threads, true);
+    std::mutex worker_lock;
+    std::mutex migrator_lock;
     std::condition_variable worker_cv;
     std::condition_variable migrator_cv;
 
@@ -452,39 +491,48 @@ ParallelGeneticMaxisSolver::operator()() {
     for (decltype(size) i = 0; i < size; ++i) {
         chromosomes.emplace_back(order);
         pop.emplace_back(&chromosomes[i]);
-        GenteticMaxisSolver::initialize_set(order, adj, chromosomes[i]);
+        GeneticMaxisSolver::initialize_set(order, adj, chromosomes[i]);
         pop[i].fitness = graph.weighted_total(*pop[i].chromosome);
     }
 
     // Assign subsets of the population to each thread and spawn them
-    vector<vector<Phenotype>::iterator> worker_iterators;
-    worker_iterators.push_back(begin(pop));
+    vector<std::atomic<bool>> migration_complete_flags;
     for (decltype(num_threads) i = 0; i < num_threads; ++i) {
-        worker_iterators.push_back(std::next(worker_iterators[i], size / num_threads));
-        std::thread t{
-            genetic_worker,
+        Worker w{
             graph,
             migration_period,
-            worker_iterators[i], worker_iterators[i+1],
-            sel, rec, mut,
-            migration_complete_flags[i], completion_count, migrator_cv, worker_cv
+            std::begin(pop) + i * size / num_threads,
+            std::begin(pop) + (i+1) * size / num_threads,
+            selector, recombinator, mutator,
+            std::ref(migration_complete_flags[i]),
+            std::ref(completion_count),
+            std::ref(worker_lock),
+            std::ref(worker_cv),
+            std::ref(migrator_cv)
         };
-        t.detach()
+        std::thread t{w};
+        t.detach();
     }
 
     // Wait for all worker threads to finish, then migrate phenotypes
     // between threads
+    std::default_random_engine engine;
     while (1) {
-        while (migrator_cv.wait() && completion_count != 0);
+        {
+            std::unique_lock<std::mutex> l(migrator_lock);
+            while(completion_count > 0) {
+                migrator_cv.wait(l);
+            }
+        }
 
         // This must occur before we set the migration_complete flags.
         completion_count = num_threads;
 
         // Shuffle the population
-        std::shuffle(begin(pop), end(pop));
+        std::shuffle(begin(pop), end(pop), engine);
 
         // This must occur after the population is shuffled
-        for (auto &flag : migration_complete_flags) {,
+        for (auto &flag : migration_complete_flags) {
             flag = true;
         }
         worker_cv.notify_all();

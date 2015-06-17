@@ -40,6 +40,9 @@ public:
             genetic::Mutator&);
     virtual BitVector operator()();
 
+    static void initialize_set(size_t, BitVector&, BitVector&);
+    static void heuristic_feasibility(size_t, BitVector&, BitVector&);
+
     // constraint is the fitness goal for the genetic algorithm.
     // The solver will return immediately when a solution with the given
     // fitness(weight) is found.
@@ -53,9 +56,6 @@ protected:
     genetic::Selector &selector;
     genetic::Recombinator &recombinator;
     genetic::Mutator &mutator;
-
-    static void initialize_set(size_t, BitVector&, BitVector&);
-    static void heuristic_feasibility(size_t, BitVector&, BitVector&);
 
     // Stores the new order of the vertices after they sorted by weight
     // and degree
