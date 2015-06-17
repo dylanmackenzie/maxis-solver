@@ -2,12 +2,16 @@
 #include <csignal>
 #include <iostream>
 #include <limits>
+#include <vector>
 #include <unordered_set>
 
 #include "maxis/graph.hpp"
 #include "maxis/genetic.hpp"
 #include "maxis/solver.hpp"
 #include "maxis/rng.hpp"
+
+using std::vector;
+using std::begin; using std::end;
 
 static volatile bool sigint_flag;
 
@@ -26,7 +30,6 @@ BruteForceMaxisSolver::BruteForceMaxisSolver(const Graph &g) : graph{g} {}
 // Returns false on overflow.
 bool
 increment_bit_vector(BitVector &bv) {
-    using std::begin; using std::end;
 
     bool carry = true;
     for (auto it = begin(bv); it != end(bv); ++it) {
@@ -79,8 +82,6 @@ GeneticMaxisSolver::GeneticMaxisSolver(
             recombinator{rec},
             mutator{mut} {
 
-    using std::begin; using std::end;
-
     // Reorder graph by sorting vertices by their weight divided by
     // their degree. Vertices with a large weight and few neighbors have
     // the highest probability of appearing in the solution.
@@ -101,12 +102,10 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 // makes a higher mutation rate necessary because some of the mutated
 // bits will be immediately cancelled out to make the set independent.
 //
-// Currently it is the bottleneck for a single iteration as it
+// Currently it is the performance bottleneck for the genetic algorithm as it
 // runs in O(|V|^2) time where |V| is the order of the graph.
 void
 GeneticMaxisSolver::heuristic_feasibility(size_t order, BitVector &adj, BitVector &chromosome) {
-    using std::begin; using std::end;
-
     // Traverse the chromosome, marking vertices which are most likely
     // to appear in an optimal solution as kept. Delete all neighbors of
     // the kept vertices from the chromosome.
@@ -143,8 +142,6 @@ GeneticMaxisSolver::heuristic_feasibility(size_t order, BitVector &adj, BitVecto
 // adjacency matrix adj
 void
 GeneticMaxisSolver::initialize_set(size_t order, BitVector &adj, BitVector &chromosome) {
-    using std::begin; using std::end;
-
     static RNG rng;
 
     BitVector cover(order, 0);
@@ -181,16 +178,57 @@ GeneticMaxisSolver::initialize_set(size_t order, BitVector &adj, BitVector &chro
 }
 
 BitVector
-GeneticMaxisSolver::operator()() {
-    using std::begin; using std::end;
+permute_chromosome(const BitVector &c, vector<size_t> perm) {
+    auto order = c.size();
+    BitVector result(order);
 
+    for (size_t i = 0; i < order; ++i) {
+        result[perm[i]] = c[i];
+    }
+
+    return result;
+}
+
+void
+initialize_algorithm_state(
+        genetic::AlgorithmState &state,
+        vector<genetic::Phenotype>::iterator b,
+        vector<genetic::Phenotype>::iterator e) {
+
+    state.min_fitness = b->fitness;
+    state.max_fitness = std::prev(e)->fitness;
+    state.total_fitness = std::accumulate(
+        b, e, 0.0,
+        [](double acc, genetic::Phenotype &ph) {
+            return acc + ph.fitness;
+        }
+    );
+    state.adjusted_fitness = state.total_fitness - state.min_fitness * state.size;
+}
+
+void
+update_algorithm_state(genetic::AlgorithmState &state, double minf, double oldf, double newf) {
+    state.total_fitness -= oldf;
+    state.total_fitness += newf;
+
+    if (newf > state.max_fitness) {
+        state.max_fitness = newf;
+    }
+
+    state.min_fitness = minf;
+    state.adjusted_fitness = state.total_fitness - state.min_fitness * state.size;
+    ++state.iterations;
+}
+
+BitVector
+GeneticMaxisSolver::operator()() {
     auto order = graph.order();
     auto adj = graph.adjacency_matrix();
-    genetic::AlgorithmState state;
+    genetic::AlgorithmState state{size};
 
     // Keep a hash table to check for duplicate chromosomes
     auto hash_func = [](BitVector *chromosome) {
-        return std::hash<std::vector<bool>>()(*chromosome);
+        return std::hash<vector<bool>>()(*chromosome);
     };
     auto eq_func = [](BitVector *lhs, BitVector *rhs) {
         return std::equal(begin(*lhs), end(*lhs), begin(*rhs));
@@ -198,10 +236,10 @@ GeneticMaxisSolver::operator()() {
     std::unordered_set<BitVector*, decltype(hash_func), decltype(eq_func)> dupes(size, hash_func, eq_func);
 
     // Generate the initial population
-    std::vector<BitVector> chromosomes;
-    std::vector<genetic::Phenotype> pop;
-    pop.reserve(size);
+    vector<BitVector> chromosomes;
+    vector<genetic::Phenotype> pop;
     chromosomes.reserve(size);
+    pop.reserve(size);
 
     // If the population size is larger than the set of possible
     // unique solutions, this will loop forever.
@@ -217,15 +255,7 @@ GeneticMaxisSolver::operator()() {
 
     // Sort population by fitness and initialize state information
     std::sort(begin(pop), end(pop));
-    state.min_fitness = begin(pop)->fitness;
-    state.max_fitness = end(pop)->fitness;
-    state.total_fitness = std::accumulate(
-        begin(pop), end(pop), 0.0,
-        [](double acc, genetic::Phenotype &ph) {
-            return acc + ph.fitness;
-        }
-    );
-    state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
+    initialize_algorithm_state(state, begin(pop), end(pop));
 
     // Start handling SIGINT
     std::signal(SIGINT, sigint_handler);
@@ -239,7 +269,7 @@ GeneticMaxisSolver::operator()() {
         // Select two parents for breeding and store the result into the
         // child, while ensuring that the newly created child is unique.
         // If the selector returns the same result every time, and the
-        // mutator does create a sufficiently unique solution, this
+        // mutator does not create a sufficiently unique solution, this
         // could loop forever.
         do {
             recombinator.breed(
@@ -253,48 +283,212 @@ GeneticMaxisSolver::operator()() {
 
         } while (dupes.insert(child.chromosome).second == false);
 
-        // Calculate fitness of the new phenotype and update the
-        // total fitness
-        state.total_fitness -= child.fitness;
-        auto child_fitness = child.fitness = graph.weighted_total(*child.chromosome);
-        state.total_fitness += child_fitness;
+        // Calculate fitness of the new phenotype
+        auto old_fitness = child.fitness;
+        auto new_fitness = child.fitness = graph.weighted_total(*child.chromosome);
 
         // Log whenever we have an increase in the maximum fitness
-        if (child_fitness > state.max_fitness) {
-            state.max_fitness = child_fitness;
+        if (new_fitness > state.max_fitness) {
             std::cout << "Best independent set: " << state.max_fitness << std::endl;
         }
 
         // Use a single pass of bubble sort to put the new child in the
         // correct order. Phenotypes with the same fitness are ordered
         // by freshness.
-        for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= child_fitness; ++it) {
-            std::swap(*it, *std::prev(it));
+        for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= new_fitness; ++it) {
+            std::iter_swap(it, std::prev(it));
         }
 
-        // Update the rest of the state information
-        state.min_fitness = begin(pop)->fitness;
-        state.adjusted_fitness = state.total_fitness - state.min_fitness * size;
-        ++state.iterations;
+        // Update state information
+        update_algorithm_state(state, begin(pop)->fitness, old_fitness, new_fitness);
         if ((state.iterations & 0x3ff) == 0) {
             std::cout << "Iterations: " << state.iterations
                       << "; Average Fitness: " << state.total_fitness / size << std::endl;
         }
     }
 
-    auto max = std::prev(end(pop));
-
     if (sigint_flag) {
         std::cout << "Interrupted..." << std::endl;
     }
 
-    // Rearrange the chromosome into the format of the original,
-    // unsorted graph
-    BitVector result(order);
-    for (size_t i = 0; i < order; ++i) {
-        result[permutation[i]] = (*max->chromosome)[i];
+    // Rearrange the most fit chromosome into the format of the
+    // original, unsorted graph
+    return permute_chromosome(*std::prev(end(pop))->chromosome, permutation);
+
+}
+
+// Parallel Genetic Solver
+// =======================
+
+ParallelGeneticMaxisSolver::ParallelGeneticMaxisSolver(
+            const Graph &g,
+            genetic::Selector &sel,
+            genetic::Recombinator &rec,
+            genetic::Mutator &mut
+        ) : GeneticMaxisSolver(g, sel, rec, mut),
+            migration_period{1000} {
+
+}
+
+// When a worker resumes, it sets its migration_complete flag to
+// false. Once it finishes, it decrements completion_count and
+// notifies the migrator_cv, then it waits on the worker_cv,
+// resuming once the migration has completed.
+//
+// Once the completion_count reaches 0, the migrator can begin
+// its work. When the migrator completes, it sets
+// completion_count to the number of worker threads, sets the
+// migration_complete flag for each worker to true and broadcasts
+// on the worker_cv. Finally, it waits on the migrator_cv.
+void
+genetic_worker(const Graph &g,
+        size_t migration_period,
+        vector<Phenotype>::iterator b,
+        vector<Phenotype>::iterator e,
+        genetic::Selector &sel,
+        genetic::Recombinator &rec,
+        genetic::Mutator &mut,
+        std::atomic<bool> &is_migration_complete,
+        std::atomic<unsigned int> &completion_count,
+        std::condition_variable &migrator_cv,
+        std::condition_variable &worker_cv) {
+
+    AlgorithmState state{std::distance(b, e)};
+    auto order = graph.order();
+    auto adj = graph.adjacency_matrix();
+
+    // Keep a hash table to check for duplicate chromosomes
+    auto hash_func = [](BitVector *chromosome) {
+        return std::hash<vector<bool>>()(*chromosome);
+    };
+    auto eq_func = [](BitVector *lhs, BitVector *rhs) {
+        return std::equal(begin(*lhs), end(*lhs), begin(*rhs));
+    };
+    std::unordered_set<BitVector*, decltype(hash_func), decltype(eq_func)> dupes(size, hash_func, eq_func);
+
+    while (1) {
+        is_migration_complete = false;
+
+        // Ensure newly migrated population is unique
+        dupes.clear();
+        for (auto it = b; it != e; ++it) {
+            auto is_changed = false;
+            while(!dupes.insert(it->chromosome).second) {
+                initialize_set(order, adj, it->chromosome);
+                is_changed = true;
+            }
+            if (is_changed) {
+                it->fitness = graph.weighted_total(*it->chromosome);
+            }
+        }
+
+        // Sort population and calculate fitness information
+        std::sort(b, e);
+        initialize_algorithm_state(state, b, e);
+
+        for (decltype(migration_period) i = 0; i < migration_period; ++i) {
+
+            // Select the weakest member of the population to be replaced
+            auto &child = *begin(pop);
+            dupes.erase(child.chromosome);
+
+            // Select two parents for breeding and store the result into the
+            // child, while ensuring that the newly created child is unique.
+            // If the selector returns the same result every time, and the
+            // mutator does not create a sufficiently unique solution, this
+            // could loop forever.
+            do {
+                recombinator.breed(
+                    state,
+                    selector.select(state, begin(pop), end(pop)),
+                    selector.select(state, begin(pop), end(pop)),
+                    child
+                );
+                mutator.mutate(state, child);
+                heuristic_feasibility(order, adj, *child.chromosome);
+
+            } while (dupes.insert(child.chromosome).second == false);
+
+            // Calculate fitness of the new phenotype
+            auto old_fitness = child.fitness;
+            auto new_fitness = child.fitness = graph.weighted_total(*child.chromosome);
+
+            // Use a single pass of bubble sort to put the new child in the
+            // correct order. Phenotypes with the same fitness are ordered
+            // by freshness.
+            for (auto it = std::next(begin(pop)); it != end(pop) && it->fitness <= new_fitness; ++it) {
+                std::iter_swap(it, std::prev(it));
+            }
+
+            // Update state information
+            update_algorithm_state(state, begin(pop)->fitness, old_fitness, new_fitness);
+        }
+
+        --completion_count;
+        migrator_cv.notify();
+        while(worker_cv.wait() && !is_migration_complete);
     }
-    return result;
+}
+
+ParallelGeneticMaxisSolver::operator()() {
+    auto order = graph.order();
+    auto adj = graph.adjacency_matrix();
+    auto num_threads = std::thread::hardware_concurrency();
+
+    // Ensure population size is evenly divisible by num_threads
+    size += size % num_threads;
+
+    // Initialize synchronization primitives
+    std::atomic<unsigned int> completion_count{num_threads};
+    vector<std::atomic<bool>> migration_complete_flags(num_threads, true);
+    std::condition_variable worker_cv;
+    std::condition_variable migrator_cv;
+
+    // Initialize population
+    vector<BitVector> chromosomes;
+    vector<genetic::Phenotype> pop;
+    chromosomes.reserve(size);
+    pop.reserve(size);
+    for (decltype(size) i = 0; i < size; ++i) {
+        chromosomes.emplace_back(order);
+        pop.emplace_back(&chromosomes[i]);
+        GenteticMaxisSolver::initialize_set(order, adj, chromosomes[i]);
+        pop[i].fitness = graph.weighted_total(*pop[i].chromosome);
+    }
+
+    // Assign subsets of the population to each thread and spawn them
+    vector<vector<Phenotype>::iterator> worker_iterators;
+    worker_iterators.push_back(begin(pop));
+    for (decltype(num_threads) i = 0; i < num_threads; ++i) {
+        worker_iterators.push_back(std::next(worker_iterators[i], size / num_threads));
+        std::thread t{
+            genetic_worker,
+            graph,
+            migration_period,
+            worker_iterators[i], worker_iterators[i+1],
+            sel, rec, mut,
+            migration_complete_flags[i], completion_count, migrator_cv, worker_cv
+        };
+        t.detach()
+    }
+
+    // Wait for all worker threads to finish, then migrate phenotypes
+    // between threads
+    while (1) {
+        while (migrator_cv.wait() && completion_count != 0);
+
+        // This must occur before we set the migration_complete flags.
+        completion_count = num_threads;
+
+        // Shuffle the population
+        std::shuffle(begin(pop), end(pop));
+
+        // This must occur after the population is shuffled
+        for (auto &flag : migration_complete_flags) {,
+            flag = true;
+        }
+        worker_cv.notify_all();
+    }
 }
 
 } // namespace maxis

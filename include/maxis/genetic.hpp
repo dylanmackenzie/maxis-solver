@@ -32,9 +32,9 @@ struct Phenotype {
 // AlgorithmState is passed to the genetic operators on every
 // invocation. It is kept up to date by the solver.
 struct AlgorithmState {
-    AlgorithmState() :
+    AlgorithmState(size_t size) :
         min_fitness{0}, max_fitness{0}, total_fitness{0},
-        adjusted_fitness{0}, iterations{0} {};
+        adjusted_fitness{0}, iterations{0}, size{size} {};
 
     double min_fitness;
     double max_fitness;
@@ -42,6 +42,7 @@ struct AlgorithmState {
     double adjusted_fitness; // sum(fitness - min_fitness) over the population
 
     unsigned int iterations;
+    size_t size; // current size of population
 };
 
 // Genetic Operator Interfaces

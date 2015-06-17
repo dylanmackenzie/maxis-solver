@@ -48,7 +48,7 @@ public:
     // size is the size of the population
     size_t size;
 
-private:
+protected:
     Graph graph;
     genetic::Selector &selector;
     genetic::Recombinator &recombinator;
@@ -60,6 +60,24 @@ private:
     // Stores the new order of the vertices after they sorted by weight
     // and degree
     std::vector<size_t> permutation;
+};
+
+// The parallel version of the genetic solver. It keeps a segment of the
+// population on each core, and performs a traditional genetic algorithm
+// on each sub-population. At the end of {migration_period} iterations,
+// population members are moved from core to core. No attempt is made to
+// eliminate duplicates at the global level, only individual
+// sub-populations are guaranteed to be unique.
+class ParallelGeneticMaxisSolver : public GeneticMaxisSolver {
+public:
+    ParallelGeneticMaxisSolver(
+            const Graph&,
+            genetic::Selector&,
+            genetic::Recombinator&,
+            genetic::Mutator&);
+    virtual BitVector operator()();
+
+    size_t migration_period;
 };
 
 } // namespace maxis
