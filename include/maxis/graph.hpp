@@ -52,7 +52,7 @@ public:
 
     // Returns the adjacency matrix of the graph
     // TODO: No need for the adjacency matrix to be the same type as a graph coloring
-    BitVector adjacency_matrix() const;
+    const BitVector& adjacency_matrix() const;
 
     // Finds the independent subgraphs
     std::vector<BitVector> independent_subgraphs() const;
@@ -62,17 +62,17 @@ public:
 
     // Getters
 
-    unsigned int order() const { return _order; };
-    unsigned int size() const { return _size; };
+    unsigned int order() const { return order_; };
+    unsigned int size() const { return size_; };
 
 private:
     std::vector<double> weights;   // vertex weights
     std::vector<std::vector<size_t>> adjacency_list; // adjacency list for vertices
 
-    // These are prefixed because the have a getter with the same name
-    // (_lowercase_name is not illegal when not in global scope).
-    unsigned int _order; // number of vertices
-    unsigned int _size; // number of edges
+    // These are suffixed because the have a getter with the same name
+    BitVector adjacency_matrix_;
+    unsigned int order_; // number of vertices
+    unsigned int size_; // number of edges
 };
 
 } // end namespace maxis

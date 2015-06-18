@@ -1,5 +1,7 @@
 #include <unordered_set>
 
+#include "graph.hpp"
+
 #ifndef MAXIS_HASH_TABLE_H
 #define MAXIS_HASH_TABLE_H
 

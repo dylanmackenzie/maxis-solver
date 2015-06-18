@@ -30,9 +30,8 @@ struct Phenotype {
 // AlgorithmState is passed to the genetic operators on every
 // invocation. It is kept up to date by the solver.
 struct AlgorithmState {
-    AlgorithmState(size_t size) :
-        min_fitness{0}, max_fitness{0}, total_fitness{0},
-        adjusted_fitness{0}, iterations{0}, size{size} {};
+    AlgorithmState();
+    void initialize(std::vector<Phenotype>::iterator, std::vector<Phenotype>::iterator);
 
     double min_fitness;
     double max_fitness;

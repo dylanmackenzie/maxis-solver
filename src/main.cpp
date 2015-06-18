@@ -8,6 +8,8 @@
 #include "maxis/solver.hpp"
 #include "maxis/genetic.hpp"
 
+using namespace maxis;
+
 int
 main(int argc, char *argv[]) {
     namespace po = boost::program_options;
@@ -54,9 +56,10 @@ main(int argc, char *argv[]) {
         vm["mutation-gradient"].as<double>()
     };
 
-    maxis::GeneticMaxisSolver solver{graph, sel, rec, mut};
+    maxis::ParallelGeneticMaxisSolver solver{graph, genetic::AlgorithmStrategy(sel, rec, mut)};
     solver.constraint = vm["constraint"].as<double>();
     solver.size = pop_size;
+    solver.migration_period = 1024;
 
     // Solve and print results
     auto result = graph.weighted_maxis(solver);

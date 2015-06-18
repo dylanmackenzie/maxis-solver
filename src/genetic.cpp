@@ -3,7 +3,27 @@
 
 #include "maxis/genetic.hpp"
 
+namespace maxis {
 namespace genetic {
+
+AlgorithmState::AlgorithmState() :
+        min_fitness{0}, max_fitness{0}, total_fitness{0},
+        adjusted_fitness{0}, iterations{0}, size{0} {};
+
+// initialize assumes the list is in sorted order
+void
+AlgorithmState::initialize(std::vector<Phenotype>::iterator b, std::vector<Phenotype>::iterator e) {
+    size = static_cast<size_t>(std::distance(b, e));
+    min_fitness = b->fitness;
+    max_fitness = std::prev(e)->fitness;
+    total_fitness = std::accumulate(
+        b, e, 0.0,
+        [](double acc, genetic::Phenotype &ph) {
+            return acc + ph.fitness;
+        }
+    );
+    adjusted_fitness = total_fitness - min_fitness * size;
+}
 
 // Selectors
 // =========
@@ -104,3 +124,4 @@ VariableRateMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
 }
 
 } // namespace genetic
+} // namespace maxis

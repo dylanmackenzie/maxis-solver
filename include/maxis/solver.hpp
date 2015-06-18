@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <exception>
 #include <unordered_set>
 
 #include "graph.hpp"
@@ -44,12 +47,13 @@ public:
     virtual BitVector operator()();
 
     static void iterate(
+            const Graph&, PopIter, PopIter,
             genetic::AlgorithmState&,
-            genetic::AlgorithmStrategy&
-            BitVector&, PopIter, PopIter, BitVectorHashTable&);
+            genetic::AlgorithmStrategy&,
+            BitVectorHashTable&);
 
-    static void initialize_set(size_t, BitVector&, BitVector&);
-    static void heuristic_feasibility(size_t, BitVector&, BitVector&);
+    static void initialize_set(const Graph&, BitVector&);
+    static void heuristic_feasibility(const Graph&, BitVector&);
 
     // constraint is the fitness goal for the genetic algorithm.
     // The solver will return immediately when a solution with the given
@@ -60,14 +64,27 @@ public:
     size_t size;
 
 protected:
-    genetic::AlgorithmStrategy &strategy;
+    Graph graph;
+    genetic::AlgorithmStrategy strategy;
 
     // Stores the new order of the vertices after they sorted by weight
     // and degree
     std::vector<size_t> permutation;
+};
 
-private:
-    Graph graph;
+// The parallel version of the genetic solver. It keeps a segment of the
+// population on each core, and performs a traditional genetic algorithm
+// on each sub-population. At the end of {migration_period} iterations,
+// population members are moved from core to core. No attempt is made to
+// eliminate duplicates at the global level, only individual
+// sub-populations are guaranteed to be unique.
+class ParallelGeneticMaxisSolver : public GeneticMaxisSolver {
+public:
+    ParallelGeneticMaxisSolver(const Graph&, genetic::AlgorithmStrategy);
+    virtual BitVector operator()();
+
+    unsigned int migration_period;
+
 };
 
 class WorkerSynchronizer {
@@ -82,7 +99,7 @@ public:
     // called.
     void wait_on_cycle();
 
-    // next_cycle is called to start a new work_cycle.
+    // next_cycle is called to start a new work cycle.
     void next_cycle();
 
     // This class allows us to use RAII to synchronize the workers. A
@@ -96,7 +113,7 @@ public:
     public:
         Handle(WorkerSynchronizer&, unsigned int);
         ~Handle();
-        Handle(const &Handle) =delete;
+        Handle(const Handle&) =delete;
         Handle& operator=(const Handle&) =delete;
         // Move constructors will be disabled automatically
 
@@ -104,53 +121,30 @@ public:
         WorkerSynchronizer &sync;
     };
 
-    class SynchronizationError : public exception {};
+    struct SynchronizationError : public std::runtime_error {
+        SynchronizationError(const char* s) : std::runtime_error(s) {};
+    };
 
 private:
     // available_handles is the total number of handles available for a
     // given work cycle
     const unsigned int available_handles;
-
-    // utilized_handles is the number of handles that have been
-    // successfully constructed for the current work cycle.
-    std::atomic<unsigned int> utilized_handles;
-
-    // discarded_handles is the number of handles that have been
-    // destroyed for the current work cycle.
-    std::atomic<unsigned int> discarded_handles;
-
-    // current_cycle is the id number of the current cycle.
+    std::atomic<unsigned int> utilized_handles;  // number of successfully constructed handles
+    std::atomic<unsigned int> discarded_handles; // number of successfully destructed handles
     std::atomic<unsigned int> current_cycle;
 
     std::condition_variable worker_cv;
     std::mutex worker_lock;
     std::condition_variable manager_cv;
     std::mutex manager_lock;
-}
-
-// The parallel version of the genetic solver. It keeps a segment of the
-// population on each core, and performs a traditional genetic algorithm
-// on each sub-population. At the end of {migration_period} iterations,
-// population members are moved from core to core. No attempt is made to
-// eliminate duplicates at the global level, only individual
-// sub-populations are guaranteed to be unique.
-class ParallelGeneticMaxisSolver : public GeneticMaxisSolver {
-public:
-    ParallelGeneticMaxisSolver(const Graph&, genetic::AlgorithmStrategy);
-    virtual BitVector operator()();
-
-    size_t migration_period;
-
-private:
-    Graph graph;
 };
 
 class ParallelGeneticWorker {
 public:
     using PopIter = std::vector<genetic::Phenotype>::iterator;
     ParallelGeneticWorker(
-            const Graph&, unsigned int
-            PopIter, PopIter,
+            const Graph&, unsigned int,
+            PopIter, PopIter, genetic::AlgorithmState&,
             genetic::AlgorithmStrategy, WorkerSynchronizer&);
 
     virtual void operator()();
@@ -160,10 +154,10 @@ private:
     unsigned int migration_period;
     PopIter b;
     PopIter e;
-    genetic::AlgorithmStrategy strat;
+    genetic::AlgorithmState &state;
+    genetic::AlgorithmStrategy strategy;
     WorkerSynchronizer &sync;
 };
-
 
 } // namespace maxis
 

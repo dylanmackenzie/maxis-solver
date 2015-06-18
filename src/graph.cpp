@@ -7,6 +7,8 @@
 #include "maxis/graph.hpp"
 #include "maxis/solver.hpp"
 
+using std::begin; using std::end;
+
 namespace maxis {
 
 Graph::Graph() {
@@ -44,9 +46,9 @@ Graph::from_ascii_dimacs(std::istream &input) {
             g.weights.resize(n1);
             std::fill(std::begin(g.weights), std::end(g.weights), 1);
             g.adjacency_list.resize(n1);
-            g._order = n1;
+            g.order_ = n1;
             ss >> n2;
-            g._size = n1;
+            g.size_ = n1;
             is_initialized = true;
             break;
         case 'e': // e W V (edge connecting w and v)
@@ -69,6 +71,15 @@ Graph::from_ascii_dimacs(std::istream &input) {
 
     if (!is_initialized) throw ParseError("'p' definition not found");
 
+    g.adjacency_matrix_.resize(g.order_ * g.order_, 0);
+
+    for (auto it = begin(g.adjacency_list); it != end(g.adjacency_list); ++it) {
+        auto offset = g.order_ * std::distance(begin(g.adjacency_list), it);
+        for (auto jt = begin(*it); jt != end(*it); ++jt) {
+            g.adjacency_matrix_[offset + *jt] = 1;
+        }
+    }
+
     return g;
 }
 
@@ -76,9 +87,6 @@ Graph::from_ascii_dimacs(std::istream &input) {
 // Finds the disconnected subgraphs
 std::vector<BitVector>
 Graph::independent_subgraphs() const {
-    using std::begin;
-    using std::end;
-
     std::vector<BitVector> subgraphs{};
     std::set<size_t> visited{};
     std::stack<size_t> search{};
@@ -88,8 +96,8 @@ Graph::independent_subgraphs() const {
     // Once all these vertex have been visited. Pick a new, unvisited
     // vertex and repeat the search, using a new subgraph. Once all
     // nodes have been visited, we are done.
-    while (visited.size() != _order) {
-        subgraphs.emplace_back(_order, 0);
+    while (visited.size() != order_) {
+        subgraphs.emplace_back(order_, 0);
         auto &sub = subgraphs.back();
 
         // Pick the lowest-indexed, unvisited vertex as the search root.
@@ -126,33 +134,19 @@ Graph::independent_subgraphs() const {
     return subgraphs;
 }
 
-BitVector
+const BitVector&
 Graph::adjacency_matrix() const {
-    using std::begin;
-    using std::end;
-
-    BitVector adjacency_matrix(_order * _order, 0);
-
-    for (auto it = begin(adjacency_list); it != end(adjacency_list); ++it) {
-        auto offset = _order * std::distance(begin(adjacency_list), it);
-        for (auto jt = begin(*it); jt != end(*it); ++jt) {
-            adjacency_matrix[offset + *jt] = 1;
-        }
-    }
-
-    return adjacency_matrix;
+    return adjacency_matrix_;
 }
 
 bool
 Graph::is_independent_set(const BitVector &bv) const {
-    using std::begin;
-    using std::end;
 
     auto adj = adjacency_matrix();
 
-    for (decltype(_order) i = 0; i < _order; ++i) {
-        auto offset = i * _order;
-        for (decltype(_order) j = 0; j < _order; ++j) {
+    for (decltype(order_) i = 0; i < order_; ++i) {
+        auto offset = i * order_;
+        for (decltype(order_) j = 0; j < order_; ++j) {
             if (adj[offset + j] == 0) {
                 continue;
             }
@@ -185,11 +179,10 @@ Graph::weighted_maxis(MaxisSolver &solve) const {
 
 void
 Graph::reorder(std::vector<size_t> &perm) {
-    using std::begin; using std::end;
 
     // Apply permutation to adjacency list and weights
-    decltype(weights) tmp_weights(_order);
-    decltype(adjacency_list) tmp_list(_order);
+    decltype(weights) tmp_weights(order_);
+    decltype(adjacency_list) tmp_list(order_);
     std::transform(begin(perm), end(perm), begin(tmp_list), [this, &perm](size_t i) {
         return adjacency_list[i];
     });
@@ -203,6 +196,15 @@ Graph::reorder(std::vector<size_t> &perm) {
     }
     adjacency_list = std::move(tmp_list);
     weights = std::move(tmp_weights);
+
+    // Recompute adjacency matrix
+    std::fill(begin(adjacency_matrix_), end(adjacency_matrix_), 0);
+    for (auto it = begin(adjacency_list); it != end(adjacency_list); ++it) {
+        auto offset = order_ * std::distance(begin(adjacency_list), it);
+        for (auto jt = begin(*it); jt != end(*it); ++jt) {
+            adjacency_matrix_[offset + *jt] = 1;
+        }
+    }
 }
 
 } // namespace maxis
