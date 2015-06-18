@@ -244,6 +244,36 @@ permute_chromosome(const BitVector &c, vector<size_t> perm) {
     return result;
 }
 
+void
+debug_heading() {
+    using std::cout; using std::endl; using std::setw;
+    const int cw = 15;
+
+    cout << setw(cw) << "Iteration"
+         << setw(8) << "Thread"
+         << setw(cw) << "Maximum"
+         << setw(cw) << "Average\n";
+
+    cout << std::string(cw * 4, '=') << endl;
+}
+
+void
+debug_iteration(const genetic::AlgorithmState &state, unsigned int n) {
+    using std::cout; using std::endl; using std::setw;
+    const int cw = 15;
+
+    if (n == 0) {
+        cout << setw(cw) << state.iterations;
+    } else {
+        cout << setw(cw) << "";
+    }
+
+    cout << setw(6) << n
+         << setw(cw) << state.max_fitness
+         << setw(cw) << state.total_fitness / state.size
+         << endl;
+}
+
 BitVector
 GeneticMaxisSolver::operator()() {
     auto order = graph.order();
@@ -276,17 +306,23 @@ GeneticMaxisSolver::operator()() {
     std::sort(b, e);
     state.initialize(b, e);
 
-    // Start handling SIGINT
+    // Start handling SIGINT and begin logging to stdout
     std::signal(SIGINT, sigint_handler);
+
+#ifdef DEBUG
+    debug_heading();
+#endif
 
     while (state.max_fitness < constraint && !sigint_flag) {
         // Iterate the genetic algorithm
         iterate(graph, b, e, state, strategy, dupes);
 
+#ifdef DEBUG
         // Log every 1024 iterations
         if ((state.iterations & 0x3ff) == 0) {
-            std::cout << state << std::endl;
+            debug_iteration(state, 0);
         }
+#endif
     }
 
     if (sigint_flag) {
@@ -391,6 +427,10 @@ ParallelGeneticMaxisSolver::operator()() {
     // Start handling SIGINT
     std::signal(SIGINT, sigint_handler);
 
+#ifdef DEBUG
+    debug_heading();
+#endif
+
     // Wait for all worker threads to finish, then migrate phenotypes
     // between threads
     std::default_random_engine engine;
@@ -401,11 +441,11 @@ ParallelGeneticMaxisSolver::operator()() {
             break;
         }
 
-        for (auto &state : worker_states) {
-            std::cout << state << " ";
+#ifdef DEBUG
+        for (decltype(num_threads) i = 0; i < num_threads; ++i) {
+            debug_iteration(worker_states[i], i);
         }
-
-        std::cout << std::endl;
+#endif
 
         // Shuffle the population
         std::shuffle(b, e, engine);
