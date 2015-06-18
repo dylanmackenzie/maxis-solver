@@ -10,7 +10,7 @@ SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 TEST_SRCS := $(shell find $(TESTDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 TEST_OBJS := $(patsubst $(TESTDIR)/%,$(BUILDDIR)/%,$(TEST_SRCS:.$(SRCEXT)=.o))
-CPPFLAGS = -std=c++14 -O2 -Wall -g
+CPPFLAGS = -std=c++14 -O2 -Wall -g -DDEBUG
 LDFLAGS =
 INC := -Iinclude/ -I/usr/include/boost
 LIB := -lboost_program_options
