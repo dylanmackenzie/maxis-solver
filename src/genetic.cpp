@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <vector>
 
 #include "maxis/genetic.hpp"
@@ -24,6 +25,13 @@ AlgorithmState::initialize(std::vector<Phenotype>::iterator b, std::vector<Pheno
     );
     adjusted_fitness = total_fitness - min_fitness * size;
 }
+
+std::ostream&
+operator<<(std::ostream& os, const AlgorithmState& state) {
+    os << state.iterations << ": " << state.max_fitness;
+    return os;
+}
+
 
 // Selectors
 // =========

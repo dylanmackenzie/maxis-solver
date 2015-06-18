@@ -42,6 +42,8 @@ struct AlgorithmState {
     size_t size; // current size of population
 };
 
+std::ostream& operator<<(std::ostream&, const AlgorithmState&);
+
 // Genetic Operator Interfaces
 // ===========================
 // These interfaces allow us to plug different genetic operators into

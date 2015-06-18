@@ -2,6 +2,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <csignal>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <mutex>
@@ -279,15 +280,17 @@ GeneticMaxisSolver::operator()() {
     std::signal(SIGINT, sigint_handler);
 
     while (state.max_fitness < constraint && !sigint_flag) {
+        // Iterate the genetic algorithm
         iterate(graph, b, e, state, strategy, dupes);
+
+        // Log every 1024 iterations
         if ((state.iterations & 0x3ff) == 0) {
-            std::cout << "Iterations: " << state.iterations
-                      << "; Average Fitness: " << state.total_fitness / size << std::endl;
+            std::cout << state << std::endl;
         }
     }
 
     if (sigint_flag) {
-        std::cout << "Interrupted..." << std::endl;
+        std::cout << "\nInterrupted..." << std::endl;
     }
 
     // Rearrange the most fit chromosome into the format of the
@@ -385,18 +388,21 @@ ParallelGeneticMaxisSolver::operator()() {
         t.detach();
     }
 
+    // Start handling SIGINT
+    std::signal(SIGINT, sigint_handler);
+
     // Wait for all worker threads to finish, then migrate phenotypes
     // between threads
     std::default_random_engine engine;
     while (1) {
         sync.wait_on_cycle();
 
-        if (std::max_element(b, e)->fitness >= constraint) {
+        if (std::max_element(b, e)->fitness >= constraint || sigint_flag) {
             break;
         }
 
         for (auto &state : worker_states) {
-            std::cout << state.max_fitness << ", ";
+            std::cout << state << " ";
         }
 
         std::cout << std::endl;
@@ -407,8 +413,11 @@ ParallelGeneticMaxisSolver::operator()() {
         sync.next_cycle();
     }
 
+    if (sigint_flag) {
+        std::cout << "\nInterrupted..." << std::endl;
+    }
+
     auto max = std::max_element(b, e)->chromosome;
-    std::cout << graph.is_independent_set(*max) << std::endl;
     return permute_chromosome(*max, permutation);
 }
 

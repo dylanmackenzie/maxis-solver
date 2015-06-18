@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
     maxis::ParallelGeneticMaxisSolver solver{graph, genetic::AlgorithmStrategy(sel, rec, mut)};
     solver.constraint = vm["constraint"].as<double>();
     solver.size = pop_size;
-    solver.migration_period = 1024;
+    solver.migration_period = 512;
 
     // Solve and print results
     auto result = graph.weighted_maxis(solver);

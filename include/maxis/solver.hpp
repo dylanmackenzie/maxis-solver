@@ -84,7 +84,6 @@ public:
     virtual BitVector operator()();
 
     unsigned int migration_period;
-
 };
 
 class WorkerSynchronizer {
