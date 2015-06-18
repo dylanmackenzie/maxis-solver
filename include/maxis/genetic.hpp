@@ -7,10 +7,8 @@
 #ifndef MAXIS_GENETIC_H
 #define MAXIS_GENETIC_H
 
+namespace maxis {
 namespace genetic {
-
-using maxis::BitVector;
-
 
 // Phenotype is a container which holds a chromosome and its associated
 // fitness.
@@ -73,6 +71,16 @@ class Mutator {
 public:
     virtual ~Mutator() {};
     virtual void mutate(const AlgorithmState&, Phenotype&) =0;
+};
+
+// AlgorithmStrategy packages a group of genetic operators
+struct AlgorithmStrategy {
+    AlgorithmStrategy(Selector &sel, Recombinator &rec, Mutator &mut)
+        : selector{sel}, recombinator{rec}, mutator{mut} {};
+
+    Selector &selector;
+    Recombinator &recombinator;
+    Mutator &mutator;
 };
 
 // Selector implementations
@@ -154,5 +162,6 @@ private:
 };
 
 } // namespace genetic
+} // namespace maxis
 
 #endif // MAXIS_GENETIC_H
