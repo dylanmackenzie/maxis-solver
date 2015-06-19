@@ -187,7 +187,7 @@ GeneticMaxisSolver::initialize_set(const Graph &graph, BitVector &chromosome) {
 
 void
 GeneticMaxisSolver::iterate(const Graph &graph, PopIter b, PopIter e,
-        AlgorithmState &state, AlgorithmStrategy &strat, BitVectorHashTable &dupes) {
+        AlgorithmState &state, AlgorithmStrategy &strat, BitVectorHashTable<BitVector> &dupes) {
 
     // Select the weakest member of the population to be replaced
     dupes.erase(b->chromosome);
@@ -282,7 +282,7 @@ GeneticMaxisSolver::operator()() {
     genetic::AlgorithmState state{};
 
     // Keep a hash table to check for duplicate chromosomes
-    BitVectorHashTable dupes{size};
+    BitVectorHashTable<BitVector> dupes{size};
 
     // Generate the initial population
     vector<BitVector> chromosomes;
@@ -433,7 +433,7 @@ void
 ParallelGeneticWorker::operator()() {
     auto size = static_cast<size_t>(std::distance(b, e));
 
-    BitVectorHashTable dupes{size};
+    BitVectorHashTable<BitVector> dupes{size};
 
     for (unsigned int cycles = 0; true; ++cycles) {
         WorkerSynchronizer::Handle h{sync, cycles};

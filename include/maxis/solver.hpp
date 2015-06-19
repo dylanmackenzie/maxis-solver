@@ -48,7 +48,7 @@ public:
             const Graph&, PopIter, PopIter,
             genetic::AlgorithmState&,
             genetic::AlgorithmStrategy&,
-            BitVectorHashTable&);
+            BitVectorHashTable<BitVector>&);
 
     static void initialize_set(const Graph&, BitVector&);
     static void heuristic_feasibility(const Graph&, BitVector&);

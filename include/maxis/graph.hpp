@@ -7,8 +7,8 @@
 
 namespace maxis {
 
-// TODO: modify code to allow use of vector<bool> or vector<char>
-using BitVector = std::vector<bool>;
+// Could be any random access container including vector<bool>
+using BitVector = std::vector<char>;
 
 // Forward declaration of solvers
 class MaxisSolver;
