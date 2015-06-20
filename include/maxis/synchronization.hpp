@@ -9,13 +9,51 @@
 namespace maxis {
 
 // This class is designed to facilitate a single manager thread sharing
-// memory with many worker threads, each of which are responsible for a
-// single slice of that memory. It was implemented before I was aware of
-// boost::shared_mutex, and instead uses atomics in combination with
-// condition variables to achieve a similar result. However, because of
-// its use of atomics, helgrind can not meaningfully analyze it, and
-// since we now lock a mutex whenever we notify on a condition variable,
-// it's probably not much faster than the shared_mutex implementation.
+// memory with many worker threads, each of which are responsible for
+// contiguous, non-overlapping slices of that memory. It was implemented
+// before I was aware of boost::shared_mutex, and instead uses atomics
+// in combination with condition variables to implement what is
+// basically a pair of semaphores (although they act are used slightly
+// abnormally, see below).
+//
+// One semaphore keeps track of the number of initiated workers, and the
+// other keeps track of the completed workers. Additionally, the
+// synchronizer keeps an incrementing count of how many times a full set
+// of workers has run to completion, and each worker keeps a count of how
+// many cycles it has completed.
+//
+// To begin, a worker constructs a handle by passing a reference to the
+// synchronizer by which it is managed and the number of work cycles it
+// has completed. The handle constructor waits until the number of work
+// cycles completed by the synchronizer is equal to the number of work
+// cycles completed by the current worker. Once this is true, the
+// constructor increments the initiated workers semaphore and allows the
+// worker to execute. If incrementing the initiated workers semaphore
+// results in it being greater than the max number of workers, the
+// handle constructor throws.
+//
+// Once a worker finishes executing the current cycle, it lets its
+// handle go out of scope. The destructor of the handle increments the
+// completed workers semaphore. Notice that we do not decrement the
+// initiated workers semaphore, otherwise accidentally creating too many
+// handles for the same work cycle might not throw an error. This differs
+// from the typical use of a semaphore.
+//
+// Once all workers finish running, the completed workers semaphore is
+// equal to the max number of workers. When the manager sees this, it
+// resumes with the knowledge that all of the worker threads are waiting
+// on a handle for the next work cycle. It runs whatever task is
+// required, then sets both semaphores back to 0. Finally, it increments
+// the work cycle count of the synchronizer, allowing all of the workers
+// to begin the next cycle.
+//
+// Because of this somewhat convoluted approach to concurrency, helgrind
+// cannot meaningfully analyze it. Additionally, since we now lock the
+// mutex for the condition variable whenever a worker or manager thread
+// finishes a work cycle, it's probably not much faster than the
+// shared_mutex implementation.
+//
+// TODO: use boost::shared_mutex instead of atomic "semaphores"
 class WorkerSynchronizer {
 public:
     // The number of workers that will be executing is passed to the
@@ -25,8 +63,7 @@ public:
     WorkerSynchronizer(unsigned int);
 
     // wait_on_cycle blocks until all workers are complete. Once it
-    // returns, no new handles can be created until next_cycle is
-    // called.
+    // returns, no workers will execute until next_cycle is called.
     void wait_on_cycle();
 
     // next_cycle is called to start a new work cycle.
@@ -37,15 +74,9 @@ public:
     // It blocks until all workers terminate.
     void terminate();
 
-    // This class allows us to use RAII to synchronize the workers. A
-    // worker constructs a handle for the current work cycle and
-    // destroys it when it is done with that work cycle. The worker then
-    // increments the number of cycles it has completed, and constructs
-    // a handle for the next work cycle. That constructor will block
-    // until the remaining threads complete the current work cycle and
-    // next_cycle is called from the manager. The worker should check if
-    // !handle is true before it begins working to see if it is being
-    // terminated.
+    // This class allows us to use RAII to synchronize the workers. The
+    // worker should check if !handle == true before it begins working
+    // to see if is in the clean up cycle.
     class Handle {
     public:
         Handle(WorkerSynchronizer&, unsigned int);
@@ -66,10 +97,6 @@ public:
     };
 
 private:
-    // TODO: Now that we lock before calling cv.notify, the atomics are
-    // only reducing the critical section by a single instruction. This
-    // is almost certainly not worth it. Use a shared_mutex instead.
-    //
     // available_handles is the total number of handles available for a
     // given work cycle
     const unsigned int available_handles;
