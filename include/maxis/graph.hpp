@@ -2,13 +2,14 @@
 #include <stdexcept>
 #include <vector>
 
+#include "boost/dynamic_bitset.hpp"
+
+#include "maxis/bit_vector.hpp"
+
 #ifndef MAXIS_GRAPH_H
 #define MAXIS_GRAPH_H
 
 namespace maxis {
-
-// Could be any random access container including vector<bool>
-using BitVector = std::vector<char>;
 
 // Forward declaration of solvers
 class MaxisSolver;
@@ -44,15 +45,14 @@ public:
     BitVector weighted_maxis(MaxisSolver&) const;
 
     // Gets the weighted total of a given coloring
-    double weighted_total(const BitVector&) const;
+    double weighted_total(BitVector&) const;
 
     // Returns true if a bit vector forms an independent set on the
     // graph
     bool is_independent_set(const BitVector&) const;
 
     // Returns the adjacency matrix of the graph
-    // TODO: No need for the adjacency matrix to be the same type as a graph coloring
-    const BitVector& adjacency_matrix() const;
+    const std::vector<BitVector>& adjacency_matrix() const;
 
     // Finds the independent subgraphs
     std::vector<BitVector> independent_subgraphs() const;
@@ -70,7 +70,7 @@ private:
     std::vector<std::vector<size_t>> adjacency_list; // adjacency list for vertices
 
     // These are suffixed because the have a getter with the same name
-    BitVector adjacency_matrix_;
+    std::vector<BitVector> adjacency_matrix_;
     unsigned int order_; // number of vertices
     unsigned int size_; // number of edges
 };

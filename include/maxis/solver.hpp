@@ -50,9 +50,6 @@ public:
             genetic::AlgorithmStrategy&,
             BitVectorHashTable<BitVector>&);
 
-    static void initialize_set(const Graph&, BitVector&);
-    static void heuristic_feasibility(const Graph&, BitVector&);
-
     // constraint is the fitness goal for the genetic algorithm.
     // The solver will return immediately when a solution with the given
     // fitness(weight) is found.

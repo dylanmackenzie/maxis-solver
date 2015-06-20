@@ -2,6 +2,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <csignal>
+#include <deque>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -9,6 +10,8 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
+
+#include "boost/dynamic_bitset.hpp"
 
 #include "maxis/graph.hpp"
 #include "maxis/genetic.hpp"
@@ -59,8 +62,6 @@ BruteForceMaxisSolver::operator()() {
     int max_weight = 0;
     BitVector max_set;
 
-    auto adjacency_matrix = graph.adjacency_matrix();
-
     BitVector bv(graph.order(), 0);
     do {
         if (graph.is_independent_set(bv)) {
@@ -106,15 +107,16 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 //
 // Currently it is the performance bottleneck for the genetic algorithm as it
 // runs in O(|V|^2) time where |V| is the order of the graph.
+template<typename Bv>
 void
-GeneticMaxisSolver::heuristic_feasibility(const Graph &graph, BitVector &chromosome) {
+heuristic_feasibility(const Graph &graph, Bv &chromosome) {
     auto order = graph.order();
     auto adj = graph.adjacency_matrix();
 
     // Traverse the chromosome, marking vertices which are most likely
     // to appear in an optimal solution as kept. Delete all neighbors of
     // the kept vertices from the chromosome.
-    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); it.first += order, ++it.second) {
+    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
         // If vertex is not selected, there is no conflict
         if (!*it.second) {
             continue;
@@ -123,8 +125,8 @@ GeneticMaxisSolver::heuristic_feasibility(const Graph &graph, BitVector &chromos
         // Delete all neighbors of the vertex. Because we are assuming
         // that the graph is bidirectional, we only need to traverse
         // half of the adjacency matrix.
-        for (auto jt = std::make_pair(std::next(it.first, std::distance(begin(chromosome), it.second)), it.second);
-                    jt.second != chromosome.end(); ++jt.first, ++jt.second) {
+        for (auto jt = std::make_pair(std::next(begin(it.first), std::distance(begin(adj), it.first)), it.second);
+                jt.second != chromosome.end(); ++jt.first, ++jt.second) {
 
             if (*jt.first) {
                 *jt.second = 0;
@@ -137,16 +139,68 @@ GeneticMaxisSolver::heuristic_feasibility(const Graph &graph, BitVector &chromos
         if (*it.second) {
             continue;
         }
-        if(std::inner_product(begin(chromosome), end(chromosome), it.first, 0) == 0) {
+        if(std::inner_product(begin(chromosome), end(chromosome), begin(it.first), 0) == 0) {
             *it.second = 1;
         }
     }
 }
 
+// This overload uses the bitwise operators available on
+// boost::dynamic_bitset to speed up the heuristic feasibility operator.
+// It could be implemented on a std::vector<bool> if given access to its
+// internals.
+void
+heuristic_feasibility(const Graph &graph, boost::dynamic_bitset<> &ch) {
+    static thread_local std::deque<size_t> set_bits;
+
+    auto adj = graph.adjacency_matrix();
+
+    // To begin, we find the location of all selected vertices in the
+    // chromosome and store them for further processing. This
+    // would be unnecessary with boost::dynamic_bitset::find_next_not().
+    // This is worth it because our cantidate independent sets are
+    // usually sparse.
+    for (auto i = ch.find_first(); i != boost::dynamic_bitset<>::npos; i = ch.find_next(i)) {
+        set_bits.push_back(i);
+    }
+
+    // Next we flip the chromosome. Now our bitvectors describe which
+    // vertices are NOT in the set.
+    ch.flip();
+
+
+    for (auto i = set_bits.front(); !set_bits.empty(); set_bits.pop_front(), i = set_bits.front()) {
+        auto &adj_bv = adj[i];
+
+        // If our vertex has been excluded from the set since we
+        // enumerated the set_bits, continue.
+        if (ch[i]) {
+            continue;
+        }
+
+        // Exclude all the neighbors of an included vertex from the set.
+        ch |= adj_bv;
+    }
+
+    // Now we visit all of the excluded vertices so we can see if they
+    // can be reincluded.
+    for (auto i = ch.find_first(); i != boost::dynamic_bitset<>::npos; i = ch.find_next(i)) {
+
+        // If all the neighbors of a given vertex are already excluded
+        // from the set, we can add that vertex to the set.
+        auto &adj_bv = adj[i];
+        ch.set(i, !adj_bv.is_subset_of(ch));
+    }
+
+    // Finally we flip the chromosome back to the traditional set
+    // representation.
+    ch.flip();
+}
+
 // initialize_set randomly creates an independent set on the graph with
 // adjacency matrix adj
 void
-GeneticMaxisSolver::initialize_set(const Graph &graph, BitVector &chromosome) {
+initialize_set(const Graph &graph, BitVector &chromosome) {
     static thread_local RNG rng;
 
     auto order = graph.order();
@@ -174,9 +228,9 @@ GeneticMaxisSolver::initialize_set(const Graph &graph, BitVector &chromosome) {
         // Select it and mark all of its neighbors as covered
         chromosome[dist] = 1;
         --uncovered_cnt;
-        for (auto i = begin(cover), j = begin(adj) + dist*order; i != end(cover); ++i, ++j) {
-            if (*j != 0 && *i == 0) {
-                *i = 1;
+        for (auto it = std::make_pair(begin(adj[dist]), begin(cover)); it.second != end(cover); ++it.first, ++it.second) {
+            if (*it.first != 0 && *it.second == 0) {
+                *it.second = 1;
                 if (--uncovered_cnt == 0) {
                     break;
                 }
@@ -205,7 +259,7 @@ GeneticMaxisSolver::iterate(const Graph &graph, PopIter b, PopIter e,
             *b
         );
         strat.mutator.mutate(state, *b);
-        GeneticMaxisSolver::heuristic_feasibility(graph, *b->chromosome);
+        heuristic_feasibility(graph, *b->chromosome);
 
     } while (dupes.insert(b->chromosome) == false);
 
@@ -365,7 +419,7 @@ ParallelGeneticMaxisSolver::operator()() {
     for (decltype(size) i = 0; i < size; ++i) {
         chromosomes.emplace_back(order);
         pop.emplace_back(&chromosomes[i]);
-        GeneticMaxisSolver::initialize_set(graph, chromosomes[i]);
+        initialize_set(graph, chromosomes[i]);
         pop[i].fitness = graph.weighted_total(*pop[i].chromosome);
     }
 
@@ -443,7 +497,7 @@ ParallelGeneticWorker::operator()() {
         for (auto it = b; it != e; ++it) {
             auto is_changed = false;
             while(dupes.insert(it->chromosome) == false) {
-                GeneticMaxisSolver::initialize_set(graph, *it->chromosome);
+                initialize_set(graph, *it->chromosome);
                 is_changed = true;
             }
             if (is_changed) {

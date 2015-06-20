@@ -71,12 +71,12 @@ Graph::from_ascii_dimacs(std::istream &input) {
 
     if (!is_initialized) throw ParseError("'p' definition not found");
 
-    g.adjacency_matrix_.resize(g.order_ * g.order_, 0);
+    g.adjacency_matrix_.reserve(g.order_);
 
     for (auto it = begin(g.adjacency_list); it != end(g.adjacency_list); ++it) {
-        auto offset = g.order_ * std::distance(begin(g.adjacency_list), it);
+        g.adjacency_matrix_.emplace_back(g.order_);
         for (auto jt = begin(*it); jt != end(*it); ++jt) {
-            g.adjacency_matrix_[offset + *jt] = 1;
+            g.adjacency_matrix_.back()[*jt] = 1;
         }
     }
 
@@ -134,7 +134,7 @@ Graph::independent_subgraphs() const {
     return subgraphs;
 }
 
-const BitVector&
+const std::vector<BitVector>&
 Graph::adjacency_matrix() const {
     return adjacency_matrix_;
 }
@@ -145,9 +145,8 @@ Graph::is_independent_set(const BitVector &bv) const {
     auto adj = adjacency_matrix();
 
     for (decltype(order_) i = 0; i < order_; ++i) {
-        auto offset = i * order_;
         for (decltype(order_) j = 0; j < order_; ++j) {
-            if (adj[offset + j] == 0) {
+            if (adj[i][j] == 0) {
                 continue;
             }
 
@@ -161,7 +160,7 @@ Graph::is_independent_set(const BitVector &bv) const {
 }
 
 double
-Graph::weighted_total(const BitVector &c) const {
+Graph::weighted_total(BitVector &c) const {
     return std::inner_product(std::begin(c), std::end(c), begin(weights), 0.0);
 }
 
@@ -198,12 +197,13 @@ Graph::reorder(std::vector<size_t> &perm) {
     weights = std::move(tmp_weights);
 
     // Recompute adjacency matrix
-    std::fill(begin(adjacency_matrix_), end(adjacency_matrix_), 0);
+    auto adj_it = begin(adjacency_matrix_);
     for (auto it = begin(adjacency_list); it != end(adjacency_list); ++it) {
-        auto offset = order_ * std::distance(begin(adjacency_list), it);
+        std::fill(begin(*adj_it), end(*adj_it), 0);
         for (auto jt = begin(*it); jt != end(*it); ++jt) {
-            adjacency_matrix_[offset + *jt] = 1;
+            (*adj_it)[*jt] = 1;
         }
+        ++adj_it;
     }
 }
 
