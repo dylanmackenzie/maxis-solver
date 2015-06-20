@@ -452,6 +452,7 @@ ParallelGeneticMaxisSolver::operator()() {
         sync.wait_on_cycle();
 
         if (std::max_element(b, e)->fitness >= constraint || sigint_flag) {
+            sync.terminate();
             break;
         }
 
@@ -491,6 +492,11 @@ ParallelGeneticWorker::operator()() {
 
     for (unsigned int cycles = 0; true; ++cycles) {
         WorkerSynchronizer::Handle h{sync, cycles};
+
+        // If handle is bad, clean up and terminate
+        if (!h) {
+            return;
+        }
 
         // Ensure newly migrated population is unique
         dupes.clear();

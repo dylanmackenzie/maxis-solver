@@ -23,6 +23,11 @@ public:
     // next_cycle is called to start a new work cycle.
     void next_cycle();
 
+    // terminate signals to the workers that this cycle will be the
+    // last, and that no actual work should be done, only clean up.
+    // It blocks until all workers terminate.
+    void terminate();
+
     // This class allows us to use RAII to synchronize the workers. A
     // worker constructs a handle for the current work cycle and
     // destroys it when it is done with that work cycle. The worker then
@@ -36,7 +41,10 @@ public:
         ~Handle();
         Handle(const Handle&) =delete;
         Handle& operator=(const Handle&) =delete;
-        // Move constructors will be disabled automatically
+        // Move constructors will be disabled automatically.
+
+        // Returns true if this is the cleanup cycle.
+        bool operator!();
 
     private:
         WorkerSynchronizer &sync;
@@ -53,6 +61,7 @@ private:
     std::atomic<unsigned int> utilized_handles;  // number of successfully constructed handles
     std::atomic<unsigned int> discarded_handles; // number of successfully destructed handles
     std::atomic<unsigned int> current_cycle;
+    std::atomic<bool> is_terminated;
 
     std::condition_variable worker_cv;
     std::mutex worker_lock;

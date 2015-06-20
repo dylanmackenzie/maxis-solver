@@ -12,7 +12,8 @@ WorkerSynchronizer::WorkerSynchronizer(
     ) : available_handles{n},
         utilized_handles{0},
         discarded_handles{0},
-        current_cycle{0} {}
+        current_cycle{0},
+        is_terminated{false} {}
 
 WorkerSynchronizer::Handle::Handle(WorkerSynchronizer &sync, unsigned int desired_cycle)
         : sync{sync} {
@@ -32,6 +33,11 @@ WorkerSynchronizer::Handle::~Handle() {
     sync.manager_cv.notify_all();
 }
 
+bool
+WorkerSynchronizer::Handle::operator!() {
+    return sync.is_terminated;
+}
+
 void
 WorkerSynchronizer::wait_on_cycle() {
     std::unique_lock<std::mutex> l(manager_lock);
@@ -46,6 +52,13 @@ WorkerSynchronizer::next_cycle() {
     discarded_handles = 0;
     ++current_cycle;
     worker_cv.notify_all();
+}
+
+void
+WorkerSynchronizer::terminate() {
+    is_terminated = true;
+    next_cycle();
+    wait_on_cycle();
 }
 
 }
