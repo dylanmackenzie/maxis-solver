@@ -17,20 +17,20 @@ public:
     void clear();
 
 private:
-    struct EqFunctor {
+    struct CmpFunctor {
         bool operator()(Bv*, Bv*) const;
     };
 
-    std::set<Bv*, EqFunctor> table;
+    std::set<Bv*, CmpFunctor> table;
 };
 
 template<typename Bv>
-BitVectorHashTable<Bv>::BitVectorHashTable(size_t size) : table(EqFunctor()) {}
+BitVectorHashTable<Bv>::BitVectorHashTable(size_t size) : table(CmpFunctor()) {}
 
 template<typename Bv>
 bool
-BitVectorHashTable<Bv>::EqFunctor::operator()(Bv *lhs, Bv *rhs) const {
-    return std::equal(begin(*lhs), end(*lhs), begin(*rhs));
+BitVectorHashTable<Bv>::CmpFunctor::operator()(Bv *lhs, Bv *rhs) const {
+    return *lhs < *rhs;
 }
 
 template<typename Bv>
