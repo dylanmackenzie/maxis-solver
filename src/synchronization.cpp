@@ -30,6 +30,8 @@ WorkerSynchronizer::Handle::Handle(WorkerSynchronizer &sync, unsigned int desire
 
 WorkerSynchronizer::Handle::~Handle() {
     ++sync.discarded_handles;
+
+    std::lock_guard<std::mutex> l(sync.manager_lock);
     sync.manager_cv.notify_all();
 }
 
@@ -51,6 +53,8 @@ WorkerSynchronizer::next_cycle() {
     utilized_handles = 0;
     discarded_handles = 0;
     ++current_cycle;
+
+    std::lock_guard<std::mutex> l(worker_lock);
     worker_cv.notify_all();
 }
 

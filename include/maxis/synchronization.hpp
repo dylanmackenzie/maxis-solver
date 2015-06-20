@@ -8,11 +8,20 @@
 
 namespace maxis {
 
+// This class is designed to facilitate a single manager thread sharing
+// memory with many worker threads, each of which are responsible for a
+// single slice of that memory. It was implemented before I was aware of
+// boost::shared_mutex, and instead uses atomics in combination with
+// condition variables to achieve a similar result. However, because of
+// its use of atomics, helgrind can not meaningfully analyze it, and
+// since we now lock a mutex whenever we notify on a condition variable,
+// it's probably not much faster than the shared_mutex implementation.
 class WorkerSynchronizer {
 public:
     // The number of workers that will be executing is passed to the
     // constructor. The number of threads attempting to use the
-    // synchronizer SHOULD BE EXACTLY THIS NUMBER.
+    // synchronizer SHOULD BE EXACTLY THIS NUMBER. The first work cycle
+    // occurs as soon as a worker thread is spawned.
     WorkerSynchronizer(unsigned int);
 
     // wait_on_cycle blocks until all workers are complete. Once it
@@ -34,7 +43,9 @@ public:
     // increments the number of cycles it has completed, and constructs
     // a handle for the next work cycle. That constructor will block
     // until the remaining threads complete the current work cycle and
-    // next_cycle is called.
+    // next_cycle is called from the manager. The worker should check if
+    // !handle is true before it begins working to see if it is being
+    // terminated.
     class Handle {
     public:
         Handle(WorkerSynchronizer&, unsigned int);
@@ -55,6 +66,10 @@ public:
     };
 
 private:
+    // TODO: Now that we lock before calling cv.notify, the atomics are
+    // only reducing the critical section by a single instruction. This
+    // is almost certainly not worth it. Use a shared_mutex instead.
+    //
     // available_handles is the total number of handles available for a
     // given work cycle
     const unsigned int available_handles;
