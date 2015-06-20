@@ -252,13 +252,13 @@ GeneticMaxisSolver::iterate(const Graph &graph, PopIter b, PopIter e,
     // mutator does not create a sufficiently unique solution, this
     // could loop forever.
     do {
-        strat.recombinator.breed(
+        strat.recombinator->breed(
             state,
-            strat.selector.select(state, b, e),
-            strat.selector.select(state, b, e),
+            strat.selector->select(state, b, e),
+            strat.selector->select(state, b, e),
             *b
         );
-        strat.mutator.mutate(state, *b);
+        strat.mutator->mutate(state, *b);
         heuristic_feasibility(graph, *b->chromosome);
 
     } while (dupes.insert(b->chromosome) == false);

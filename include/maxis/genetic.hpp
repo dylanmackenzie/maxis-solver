@@ -53,7 +53,8 @@ std::ostream& operator<<(std::ostream&, const AlgorithmState&);
 
 class Selector {
 public:
-    virtual ~Selector() {};
+    virtual ~Selector() {}
+    virtual Selector* clone() const =0;
     virtual Phenotype& select(
             const AlgorithmState&,
             std::vector<Phenotype>::iterator,
@@ -62,7 +63,8 @@ public:
 
 class Recombinator {
 public:
-    virtual ~Recombinator() {};
+    virtual ~Recombinator() {}
+    virtual Recombinator* clone() const =0;
     virtual void breed(
             const AlgorithmState&,
             const Phenotype&, const Phenotype&, Phenotype&) =0;
@@ -70,18 +72,26 @@ public:
 
 class Mutator {
 public:
-    virtual ~Mutator() {};
+    virtual ~Mutator() {}
+    virtual Mutator* clone() const =0;
     virtual void mutate(const AlgorithmState&, Phenotype&) =0;
 };
 
 // AlgorithmStrategy packages a group of genetic operators
 struct AlgorithmStrategy {
     AlgorithmStrategy(Selector &sel, Recombinator &rec, Mutator &mut)
-        : selector{sel}, recombinator{rec}, mutator{mut} {};
+        : selector{sel.clone()},
+          recombinator{rec.clone()},
+          mutator{mut.clone()} {};
 
-    Selector &selector;
-    Recombinator &recombinator;
-    Mutator &mutator;
+    AlgorithmStrategy(const AlgorithmStrategy &strat)
+        : selector{strat.selector->clone()},
+          recombinator{strat.recombinator->clone()},
+          mutator{strat.mutator->clone()} {};
+
+    std::unique_ptr<Selector> selector;
+    std::unique_ptr<Recombinator> recombinator;
+    std::unique_ptr<Mutator> mutator;
 };
 
 // Selector implementations
@@ -91,6 +101,7 @@ struct AlgorithmStrategy {
 class TournamentSelector : public virtual Selector {
 public:
     TournamentSelector(size_t size) : size{size} {};
+    virtual TournamentSelector* clone() const { return new TournamentSelector(*this); }
     Phenotype& select(
             const AlgorithmState&,
             std::vector<Phenotype>::iterator,
@@ -108,6 +119,7 @@ private:
 // outlier, that outlier will be selected every time.
 class RouletteSelector : public virtual Selector {
 public:
+    virtual RouletteSelector* clone() const { return new RouletteSelector(*this); }
     Phenotype& select(
             const AlgorithmState&,
             std::vector<Phenotype>::iterator,
@@ -123,6 +135,7 @@ public:
 // the parent.
 class BlendingRecombinator : public virtual Recombinator {
 public:
+    virtual BlendingRecombinator* clone() const { return new BlendingRecombinator(*this); }
     void breed(const AlgorithmState&, const Phenotype&, const Phenotype&, Phenotype&);
     RNG rng;
 };
@@ -133,6 +146,7 @@ public:
 // {mul} bits.
 class SimpleMutator : public virtual Mutator {
 public:
+    virtual SimpleMutator* clone() const { return new SimpleMutator(*this); }
     SimpleMutator(double mul) : probability_multiplier{mul} {};
     void mutate(const AlgorithmState&, Phenotype&);
 
@@ -149,6 +163,7 @@ private:
 // slope at the halfway point.
 class VariableRateMutator : public virtual Mutator {
 public:
+    virtual VariableRateMutator* clone() const { return new VariableRateMutator(*this); }
     VariableRateMutator(double ss, size_t halfway, double gradient)
         : steady_state{ss}, halfway{halfway}, gradient{gradient} {};
 
