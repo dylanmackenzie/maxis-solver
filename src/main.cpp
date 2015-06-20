@@ -48,8 +48,13 @@ main(int argc, char *argv[]) {
     if (vm.count("population")) {
         pop_size = vm["population"].as<size_t>();
     }
+
+    // genetic::RouletteSelector sel{};
     genetic::TournamentSelector sel{vm["selector"].as<size_t>()};
+
     genetic::BlendingRecombinator rec{};
+
+    // genetic::SimpleMutator mut{vm["mutation"].as<double>()};
     genetic::VariableRateMutator mut{
         vm["mutation"].as<double>(),
         vm["mutation-start"].as<size_t>(),
@@ -59,7 +64,7 @@ main(int argc, char *argv[]) {
     maxis::ParallelGeneticMaxisSolver solver{graph, genetic::AlgorithmStrategy(sel, rec, mut)};
     solver.constraint = vm["constraint"].as<double>();
     solver.size = pop_size;
-    solver.migration_period = 512;
+    solver.migration_period = 2048;
 
     // Solve and print results
     auto result = graph.weighted_maxis(solver);
