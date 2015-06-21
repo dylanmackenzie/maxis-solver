@@ -22,18 +22,24 @@ main(int argc, char *argv[]) {
         ("help,h", "Display usage information")
         ("file", po::value<std::string>(), "Input file")
         ("population,p", po::value<size_t>(), "Population size")
-        ("constraint,w", po::value<double>()->default_value(30), "Constraint weight")
-        ("mutation,m", po::value<double>()->default_value(7), "Mutation rate")
-        ("mutation-start", po::value<size_t>()->default_value(5000), "Point at which mutation"
-            " reaches half of its final rate (will only take effect with VariableRateMutator)")
-        ("mutation-gradient", po::value<double>()->default_value(0.005), "Mutation growth rate (will only take effect with Variable Rate Mutator)")
-        ("selector,s", po::value<size_t>()->default_value(2), "Tournament Size");
+        ("target,w", po::value<double>(), "Target fitness value")
+        ("mutation,m", po::value<double>()->default_value(9), "Mutation rate")
+        ("mutation-start", po::value<size_t>()->default_value(5000),
+             "(Variable Rate Mutator) Point at which mutation reaches half of its final rate")
+        ("mutation-gradient", po::value<double>()->default_value(0.05, "0.05"),
+             "(Variable Rate Mutator) Mutation growth rate")
+        ("selector,s", po::value<size_t>()->default_value(2),
+             "(Tournament Selector) Tournament Size");
 
     po::positional_options_description p;
     p.add("file", -1);
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv).options(opts).positional(p).run(), vm);
     po::notify(vm);
+    if (vm.count("help")) {
+        cout << opts << endl;
+        return 0;
+    }
     if (!vm.count("file")) {
         cout << "No input file specified" << endl;
         return 1;
@@ -62,7 +68,7 @@ main(int argc, char *argv[]) {
     };
 
     maxis::ParallelGeneticMaxisSolver solver{graph, genetic::AlgorithmStrategy(sel, rec, mut)};
-    solver.constraint = vm["constraint"].as<double>();
+    solver.constraint = vm["target"].as<double>();
     solver.size = pop_size;
     solver.migration_period = 2048;
 
