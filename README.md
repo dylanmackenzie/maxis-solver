@@ -1,3 +1,6 @@
+Genetic Algorithm for Weighted MaxIS
+====================================
+
 This program uses a parallel genetic algorithm to approximate solutions
 to the Weighted Maximum Independent Set problem on large graphs. It
 implements both single-threaded and multi-threaded versions of the
