@@ -27,7 +27,7 @@ operators or implement their own by inheriting from a virtual base
 class.
 
 Compilation and Usage
-=====================
+---------------------
 
 The solver must be built by a compiler with c++11 support and depends on
 boost. If DEBUG is defined during compilation, the solver will log the
@@ -36,7 +36,7 @@ state of the population every few thousand iterations.
 Run `bin/graph --help` for usage information.
 
 Algorithm
-=========
+---------
 
 Familiarity with genetic algorithms is assumed for this section.
 
@@ -96,7 +96,7 @@ We also use Beasely and Chu's variable rate mutator, although it is more
 of a minor optimization than a major one.
 
 Implementation Details
-======================
+----------------------
 
 The solver is written in C++ and makes heavy use of features introduced
 in C++11. Currently, it depends on boost's program options, dynamic
@@ -104,7 +104,7 @@ bitset, and iterator facade libraries. Most of the implementation
 details for the single-threaded case are fairly obvious. We reorder the
 input graph to give "good" vertices lower indices which simplifies the
 heuristic feasibility operator. The heuristic feasibility operator is
-also specialized for boost's dynamic bitset, it runs about an order of
+also specialized for boost's dynamic bitset: it runs about an order of
 magnitude faster than the naive implementation due to the availability
 of bitwise operators. See src/solver.cpp for more details. This requires
 a custom iterator for a dynamic bitset that allows it to be used with
@@ -123,7 +123,7 @@ the global hash table. We also implement a custom synchronization class,
 to manage all of these threads.
 
 Limitations and Possible Improvements
-=====================================
+-------------------------------------
 
 This was programmed in a little over a week and has many imperfections.
 The graph class was implemented in a hurry and in total ignorance of the
@@ -154,3 +154,5 @@ helgrind tool can properly analyze the code. The sharing of a single
 vector of phenotypes between multiple threads without a lock also
 unnerves me, although the vector's size is not modified and each thread
 only accesses its own section of the vector.
+
+
