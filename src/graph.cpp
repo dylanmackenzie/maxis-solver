@@ -142,8 +142,7 @@ Graph::adjacency_matrix() const {
 
 bool
 Graph::is_independent_set(const BitVector &bv) const {
-
-    auto adj = adjacency_matrix();
+    auto &adj = adjacency_matrix();
 
     for (decltype(order_) i = 0; i < order_; ++i) {
         for (decltype(order_) j = 0; j < order_; ++j) {

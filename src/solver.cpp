@@ -112,7 +112,7 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 template<typename Bv, typename std::enable_if<!std::is_same<boost::dynamic_bitset<>, Bv>::value>::type* = nullptr>
 void
 heuristic_feasibility(const Graph &graph, Bv &chromosome) {
-    auto adj = graph.adjacency_matrix();
+    auto &adj = graph.adjacency_matrix();
 
     // Traverse the chromosome, marking vertices which are most likely
     // to appear in an optimal solution as kept. Delete all neighbors of
@@ -155,7 +155,7 @@ void
 heuristic_feasibility(const Graph &graph, Bv &ch) {
     static thread_local std::deque<size_t> set_bits;
 
-    auto adj = graph.adjacency_matrix();
+    auto &adj = graph.adjacency_matrix();
 
     // To begin, we find the location of all selected vertices in the
     // chromosome and store them for further processing. This
@@ -205,7 +205,7 @@ initialize_set(const Graph &graph, BitVector &chromosome) {
     static thread_local RNG rng;
 
     auto order = graph.order();
-    auto adj = graph.adjacency_matrix();
+    auto &adj = graph.adjacency_matrix();
 
     BitVector cover(order, 0);
     std::fill(begin(chromosome), end(chromosome), 0);
@@ -333,7 +333,6 @@ debug_iteration(const genetic::AlgorithmState &state, unsigned int n) {
 BitVector
 GeneticMaxisSolver::operator()() {
     auto order = graph.order();
-    auto adj = graph.adjacency_matrix();
     genetic::AlgorithmState state{};
 
     // Keep a hash table to check for duplicate chromosomes
@@ -402,7 +401,6 @@ ParallelGeneticMaxisSolver::ParallelGeneticMaxisSolver(
 BitVector
 ParallelGeneticMaxisSolver::operator()() {
     auto order = graph.order();
-    auto adj = graph.adjacency_matrix();
     auto num_threads = std::thread::hardware_concurrency();
 
     // Ensure population size is evenly divisible by num_threads
