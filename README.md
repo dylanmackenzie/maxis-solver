@@ -30,13 +30,18 @@ Compilation and Usage
 ---------------------
 
 The solver must be built by a compiler with c++14 support (due to its
-use of the nonmember cbegin and cend functions) and depends on boost. If
-you are using gcc, this means version 5 and above. If DEBUG is defined
-during compilation, the solver will log the state of the population
-every few thousand iterations. Object files will be put in the build
-directory, and the executable will appear in the bin directory. You may
-need to edit the Makefile to point your compiler to the boost header
-files on your system.
+use of the nonmember cbegin and cend functions) and depends on boost.
+This means at least clang-3.5 or gcc-5. clang does not support the debug
+flag (-g) with auto variables, so this must be disabled in the Makefile
+if you wish to use clang. If you do not have access to a compiler with
+adequate support, `sed -i -r 's/([^:])c(begin|end)/\1\2/g;/^using std::cbegin/d' src/*`
+will get you started.
+
+If DEBUG is defined during compilation, the solver will log the state of
+the population every few thousand iterations. Object files will be put
+in the build directory, and the executable will appear in the bin
+directory. You may need to edit the Makefile to point your compiler to
+the boost header files on your system.
 
 Run `bin/graph --help` for usage information. The `--file` option can be
 passed positionally to the executable.
