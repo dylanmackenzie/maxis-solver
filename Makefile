@@ -13,9 +13,9 @@ TEST_OBJS := $(patsubst $(TESTDIR)/%,$(BUILDDIR)/%,$(TEST_SRCS:.$(SRCEXT)=.o))
 CPPFLAGS = -std=c++14 -O2 -Wall -g -DDEBUG
 LDFLAGS =
 INC := -Iinclude/ -I/usr/include/boost
-LIB := -lboost_program_options
+LIB := -lboost_program_options -lpthread
 TESTINC := $(INC) -I$(GTESTDIR)/include
-TESTLIB := $(LIB) -L$(GTESTDIR)/lib/.libs -lgtest -lgtest_main -lpthread
+TESTLIB := $(LIB) -L$(GTESTDIR)/lib/.libs -lgtest -lgtest_main
 
 $(TARGET): $(OBJECTS)
 	@echo " Linking..."
