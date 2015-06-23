@@ -23,6 +23,7 @@
 
 using std::vector;
 using std::begin; using std::end;
+using std::cbegin; using std::cend;
 using namespace maxis::genetic;
 using PopIter = std::vector<Phenotype>::iterator;
 
@@ -43,7 +44,6 @@ BruteForceMaxisSolver::BruteForceMaxisSolver(const Graph &g) : graph{g} {}
 // Returns false on overflow.
 bool
 increment_bit_vector(BitVector &bv) {
-
     bool carry = true;
     for (auto it = begin(bv); it != end(bv); ++it) {
         if (*it == 0){
@@ -117,7 +117,7 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
     // Traverse the chromosome, marking vertices which are most likely
     // to appear in an optimal solution as kept. Delete all neighbors of
     // the kept vertices from the chromosome.
-    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
+    for (auto it = std::make_pair(cbegin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
         // If vertex is not selected, there is no conflict
         if (!*it.second) {
             continue;
@@ -126,7 +126,7 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
         // Delete all neighbors of the vertex. Because we are assuming
         // that the graph is bidirectional, we only need to traverse
         // half of the adjacency matrix.
-        for (auto jt = std::make_pair(std::next(begin(*it.first), std::distance(begin(adj), it.first)), it.second);
+        for (auto jt = std::make_pair(std::next(begin(*it.first), std::distance(cbegin(adj), it.first)), it.second);
                 jt.second != chromosome.end(); ++jt.first, ++jt.second) {
 
             if (*jt.first) {
@@ -136,7 +136,7 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
     }
 
     // Add back vertices where we can
-    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
+    for (auto it = std::make_pair(cbegin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
         if (*it.second) {
             continue;
         }
@@ -229,7 +229,7 @@ initialize_set(const Graph &graph, BitVector &chromosome) {
         // Select it and mark all of its neighbors as covered
         chromosome[dist] = 1;
         --uncovered_cnt;
-        for (auto it = std::make_pair(begin(adj[dist]), begin(cover)); it.second != end(cover); ++it.first, ++it.second) {
+        for (auto it = std::make_pair(cbegin(adj[dist]), begin(cover)); it.second != end(cover); ++it.first, ++it.second) {
             if (*it.first != 0 && *it.second == 0) {
                 *it.second = 1;
                 if (--uncovered_cnt == 0) {

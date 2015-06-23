@@ -9,7 +9,9 @@ namespace maxis {
 namespace genetic {
 
 using std::begin; using std::end;
+using std::cbegin; using std::cend;
 using maxis::begin; using maxis::end;
+using maxis::cbegin; using maxis::cend;
 
 AlgorithmState::AlgorithmState() :
         min_fitness{0}, max_fitness{0}, total_fitness{0},
@@ -81,9 +83,8 @@ BlendingRecombinator::breed(const AlgorithmState &state, const Phenotype &p1, co
     auto f1 = p1.fitness;
     auto f2 = p2.fitness;
 
-    for (auto i = begin(*p1.chromosome), j = begin(*p2.chromosome), k = begin(*c.chromosome);
-            i != end(*p1.chromosome); ++i, ++j, ++k) {
-
+    auto k = begin(*c.chromosome);
+    for (auto i = cbegin(*p1.chromosome), j = cbegin(*p2.chromosome); i != cend(*p1.chromosome); ++i, ++j, ++k) {
         if (*i == *j) {
             *k = *i;
         }
