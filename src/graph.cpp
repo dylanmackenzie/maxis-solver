@@ -4,6 +4,7 @@
 #include <stack>
 #include <vector>
 
+#include "maxis/bit_vector.hpp"
 #include "maxis/graph.hpp"
 #include "maxis/solver.hpp"
 
@@ -44,7 +45,7 @@ Graph::from_ascii_dimacs(std::istream &input) {
             if (token != "edge") throw ParseError("'p' must have FORMAT of 'edge'");
             ss >> n1;
             g.weights.resize(n1);
-            std::fill(std::begin(g.weights), std::end(g.weights), 1);
+            std::fill(begin(g.weights), end(g.weights), 1);
             g.adjacency_list.resize(n1);
             g.order_ = n1;
             ss >> n2;
@@ -161,7 +162,7 @@ Graph::is_independent_set(const BitVector &bv) const {
 
 double
 Graph::weighted_total(BitVector &c) const {
-    return std::inner_product(std::begin(c), std::end(c), begin(weights), 0.0);
+    return std::inner_product(begin(c), end(c), begin(weights), 0.0);
 }
 
 BitVector

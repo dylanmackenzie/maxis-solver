@@ -1,6 +1,6 @@
 #include "maxis/bit_vector.hpp"
 
-namespace std {
+namespace maxis {
 
 maxis::bitset_iterator
 begin(boost::dynamic_bitset<> &b) {

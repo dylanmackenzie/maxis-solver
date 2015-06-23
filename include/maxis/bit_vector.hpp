@@ -15,8 +15,8 @@ class bitset_iterator :
         bool,
         boost::random_access_traversal_tag,
         boost::dynamic_bitset<>::reference,
-        long int
-    > {
+        long int >
+    {
 
 public:
     bitset_iterator() : b{nullptr}, pos{0} {}
@@ -38,13 +38,10 @@ private:
     long int distance_to(boost::dynamic_bitset<>::size_type z) const { return pos - z; }
 };
 
-} // namespace maxis
-
-
-// Overload std::begin and std::end for a boost::dynamic_bitset
-// TODO: This is may be undefined behavior depending on whether or not
-// boost types are 'user-defined'. There must be a better way to do this.
-namespace std {
+// Overload begin and end for a boost::dynamic_bitset in our local
+// namespace. Becasue most code uses using declarations for std::begin
+// and std::end, these will be called instead of their standard library
+// counterparts.
 
 auto begin(boost::dynamic_bitset<> &b) -> maxis::bitset_iterator;
 auto end(boost::dynamic_bitset<> &b) -> maxis::bitset_iterator;

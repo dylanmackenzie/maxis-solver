@@ -2,10 +2,14 @@
 #include <iostream>
 #include <vector>
 
+#include "maxis/bit_vector.hpp"
 #include "maxis/genetic.hpp"
 
 namespace maxis {
 namespace genetic {
+
+using std::begin; using std::end;
+using maxis::begin; using maxis::end;
 
 AlgorithmState::AlgorithmState() :
         min_fitness{0}, max_fitness{0}, total_fitness{0},
@@ -38,7 +42,6 @@ operator<<(std::ostream& os, const AlgorithmState& state) {
 
 Phenotype&
 TournamentSelector::select(const AlgorithmState &state, std::vector<Phenotype>::iterator b, std::vector<Phenotype>::iterator e) {
-    using std::begin; using std::end;
 
     auto selection = std::next(b, rng.random_index(0, std::distance(b, e) - 1));
     double best_fitness = selection->fitness;
@@ -56,8 +59,6 @@ TournamentSelector::select(const AlgorithmState &state, std::vector<Phenotype>::
 
 Phenotype&
 RouletteSelector::select(const AlgorithmState &state, std::vector<Phenotype>::iterator b, std::vector<Phenotype>::iterator e) {
-    using std::begin; using std::end;
-
     // TODO: ensure correctness in face of floating point rounding
     auto rn = rng.random_prob();
     double sum = 0;
@@ -77,8 +78,6 @@ RouletteSelector::select(const AlgorithmState &state, std::vector<Phenotype>::it
 
 void
 BlendingRecombinator::breed(const AlgorithmState &state, const Phenotype &p1, const Phenotype &p2, Phenotype &c) {
-    using std::begin; using std::end;
-
     auto f1 = p1.fitness;
     auto f2 = p2.fitness;
 
@@ -105,8 +104,6 @@ BlendingRecombinator::breed(const AlgorithmState &state, const Phenotype &p1, co
 
 void
 SimpleMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
-    using std::begin; using std::end;
-
     double rate = probability_multiplier / ph.chromosome->size();
 
     for (auto it = begin(*ph.chromosome); it != end(*ph.chromosome); ++it) {
@@ -118,8 +115,6 @@ SimpleMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
 
 void
 VariableRateMutator::mutate(const AlgorithmState &state, Phenotype &ph) {
-    using std::begin; using std::end;
-
     double rate = exp(-4 * gradient * (state.iterations - halfway) / steady_state);
     rate = steady_state / (1 + rate);
     double prob = rate / ph.chromosome->size();

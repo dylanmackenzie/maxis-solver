@@ -8,11 +8,13 @@
 #include <limits>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include <unordered_set>
 #include <vector>
 
 #include "boost/dynamic_bitset.hpp"
 
+#include "maxis/bit_vector.hpp"
 #include "maxis/graph.hpp"
 #include "maxis/genetic.hpp"
 #include "maxis/solver.hpp"
@@ -107,10 +109,9 @@ GeneticMaxisSolver::GeneticMaxisSolver(
 //
 // Currently it is the performance bottleneck for the genetic algorithm as it
 // runs in O(|V|^2) time where |V| is the order of the graph.
-template<typename Bv>
+template<typename Bv, typename std::enable_if<!std::is_same<boost::dynamic_bitset<>, Bv>::value>::type* = nullptr>
 void
 heuristic_feasibility(const Graph &graph, Bv &chromosome) {
-    auto order = graph.order();
     auto adj = graph.adjacency_matrix();
 
     // Traverse the chromosome, marking vertices which are most likely
@@ -125,7 +126,7 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
         // Delete all neighbors of the vertex. Because we are assuming
         // that the graph is bidirectional, we only need to traverse
         // half of the adjacency matrix.
-        for (auto jt = std::make_pair(std::next(begin(it.first), std::distance(begin(adj), it.first)), it.second);
+        for (auto jt = std::make_pair(std::next(begin(*it.first), std::distance(begin(adj), it.first)), it.second);
                 jt.second != chromosome.end(); ++jt.first, ++jt.second) {
 
             if (*jt.first) {
@@ -135,11 +136,11 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
     }
 
     // Add back vertices where we can
-    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); it.first += order, ++it.second) {
+    for (auto it = std::make_pair(begin(adj), begin(chromosome)); it.second != end(chromosome); ++it.first, ++it.second) {
         if (*it.second) {
             continue;
         }
-        if(std::inner_product(begin(chromosome), end(chromosome), begin(it.first), 0) == 0) {
+        if(std::inner_product(begin(chromosome), end(chromosome), begin(*it.first), 0) == 0) {
             *it.second = 1;
         }
     }
@@ -149,8 +150,9 @@ heuristic_feasibility(const Graph &graph, Bv &chromosome) {
 // boost::dynamic_bitset to speed up the heuristic feasibility operator.
 // It could be implemented on a std::vector<bool> if given access to its
 // internals.
+template<typename Bv, typename std::enable_if<std::is_same<boost::dynamic_bitset<>, Bv>::value>::type* = nullptr>
 void
-heuristic_feasibility(const Graph &graph, boost::dynamic_bitset<> &ch) {
+heuristic_feasibility(const Graph &graph, Bv &ch) {
     static thread_local std::deque<size_t> set_bits;
 
     auto adj = graph.adjacency_matrix();
@@ -167,7 +169,6 @@ heuristic_feasibility(const Graph &graph, boost::dynamic_bitset<> &ch) {
     // Next we flip the chromosome. Now our bitvectors describe which
     // vertices are NOT in the set.
     ch.flip();
-
 
     for (auto i = set_bits.front(); !set_bits.empty(); set_bits.pop_front(), i = set_bits.front()) {
         auto &adj_bv = adj[i];
