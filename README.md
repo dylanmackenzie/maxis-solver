@@ -129,9 +129,9 @@ This was programmed in a little over a week and has many imperfections.
 The graph class was implemented in a hurry and in total ignorance of the
 far superior boost graph library. It only accepts graphs in the DIMACS
 ASCII format, and is probably the least optimized and least organized
-part of the code base. The code basically neglects const correctness,
-and uses references and, in one case, raw pointers where smart pointers
-would be more appropriate. These issues could be resolved with a bit of
+part of the code base. As of v0.1, the code attempts to maintain const
+correctness, but there are still a few places that would benefit from
+the use of smart pointers. These issues could be resolved with a bit of
 patience.
 
 The genetic operators are implemented with virtual base
@@ -153,6 +153,8 @@ would like to reimplement this with a shared mutex so that valgrind's
 helgrind tool can properly analyze the code. The sharing of a single
 vector of phenotypes between multiple threads without a lock also
 unnerves me, although the vector's size is not modified and each thread
-only accesses its own section of the vector.
+only accesses its own section of the vector. Perhaps there is a way to
+'share memory by communicating' instead of 'communicating by shared
+memory' in the words of Rob Pike.
 
 
