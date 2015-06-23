@@ -93,7 +93,46 @@ genetically similar parents very likely, as most solutions will contain
 vertices that the heuristic considers good ones.
 
 We also use Beasely and Chu's variable rate mutator, although it is more
-of a minor optimization than a major one.
+of a minor optimization than a major one. I hope to develop adaptive
+recombinators and mutators in a future version.
+
+Results
+-------
+
+These tests were performed on a 2008 Dell laptop with a 64-bit dual-core
+2.10GHz processor. The algorithm should scale almost linearly to
+additional cores, so using a more modern computer would greatly improve
+performance. I have not yet tested the algorithm with random seeds,
+instead using a fixed seed to determine optimal parameters for the
+mutator and recombinator. Until testing with random seeds is performed,
+these results should be viewed with skepticism. Tuning has focused on
+the 450 vertex graphs with a MIS of 30, and the best invocation seemed
+to be:
+
+    bin/graph -w 30 -p 600 -s 8 -m 8 {input_file}
+
+This uses a tournament size of 8, a mutation rate of 8, and a population
+size of 600. Using these parameters, optimal solutions were found for
+BHOSLIB instances 1, 2, and 4 in 7.49s, 7.73s, and 1.63s respectively.
+Instance 3 converges to 29 vertices in 3.48s but makes no further
+progress through 1e6 iterations. Instance 5 takes even longer to
+converge, requiring 175.86s and just over 1e6 iterations to find an
+independent set of 29 vertices. This behavior can probably be
+attributed to the heuristic feasibility operator, as the MISs for the
+first three graphs contain many of the vertices which are positively
+evaluated by the heuristic. This shows that while the heuristic
+feasibility operator finds good solutions rapidly, it can converge too
+quickly to find optimal solutions on some graphs.
+
+For fun, I also ran the genetic algorithm on the frb100 instance which
+contains 4000 vertices and has a MIS of 100. The algorithm finds an
+independent set of 90 in 140s, but stalls at 92 through 5e5 iterations
+or roughly 1600s. According to the BHOSLIB website, the best solutions
+are found with stochastic local search solvers, which discover solutions
+of over 95 vertices in around 1000s. The current record of 99 vertices
+took just under 24 hours to find. I am hopeful that using adaptive
+genetic operators could prevent premature convergence of the algorithm
+on large graphs such as these.
 
 Implementation Details
 ----------------------
