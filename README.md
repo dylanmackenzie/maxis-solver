@@ -29,11 +29,17 @@ class.
 Compilation and Usage
 ---------------------
 
-The solver must be built by a compiler with c++11 support and depends on
-boost. If DEBUG is defined during compilation, the solver will log the
-state of the population every few thousand iterations.
+The solver must be built by a compiler with c++14 support (due to its
+use of the nonmember cbegin and cend functions) and depends on boost. If
+you are using gcc, this means version 5 and above. If DEBUG is defined
+during compilation, the solver will log the state of the population
+every few thousand iterations. Object files will be put in the build
+directory, and the executable will appear in the bin directory. You may
+need to edit the Makefile to point your compiler to the boost header
+files on your system.
 
-Run `bin/graph --help` for usage information.
+Run `bin/graph --help` for usage information. The `--file` option can be
+passed positionally to the executable.
 
 Algorithm
 ---------
