@@ -13,7 +13,7 @@ namespace maxis {
 // contiguous, non-overlapping slices of that memory. It was implemented
 // before I was aware of boost::shared_mutex, and instead uses atomics
 // in combination with condition variables to implement what is
-// basically a pair of semaphores (although they act are used slightly
+// basically a pair of semaphores (although they are used slightly
 // abnormally, see below).
 //
 // One semaphore keeps track of the number of initiated workers, and the
@@ -34,10 +34,10 @@ namespace maxis {
 //
 // Once a worker finishes executing the current cycle, it lets its
 // handle go out of scope. The destructor of the handle increments the
-// completed workers semaphore. Notice that we do not decrement the
-// initiated workers semaphore, otherwise accidentally creating too many
-// handles for the same work cycle might not throw an error. This differs
-// from the typical use of a semaphore.
+// completed workers semaphore and notifies the manager. Notice that we
+// do not decrement the initiated workers semaphore, otherwise
+// accidentally creating too many handles for the same work cycle might
+// not throw an error. This differs from the typical use of a semaphore.
 //
 // Once all workers finish running, the completed workers semaphore is
 // equal to the max number of workers. When the manager sees this, it

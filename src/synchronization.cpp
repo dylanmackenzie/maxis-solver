@@ -22,6 +22,7 @@ WorkerSynchronizer::Handle::Handle(WorkerSynchronizer &sync, unsigned int desire
     while(desired_cycle != sync.current_cycle) {
         sync.worker_cv.wait(l);
     }
+    l.unlock();
 
     if (++sync.utilized_handles > sync.available_handles) {
         throw SynchronizationError("Too many workers attempting to reserve handles");
